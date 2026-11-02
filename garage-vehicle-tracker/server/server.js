@@ -35,6 +35,7 @@ const SCHEMA = [
   type VARCHAR(16) NOT NULL,
   buy_date DATE NULL,
   buy_km INT NOT NULL DEFAULT 0,
+  buy_price DECIMAL(14,2) NULL,
   odo INT NOT NULL DEFAULT 0,
   odo_offset INT NOT NULL DEFAULT 0,
   currency VARCHAR(8) NOT NULL DEFAULT '¥',
@@ -98,6 +99,7 @@ async function initSchema(p) {
   // обновление баз, созданных версией 1.0
   await addCol(p, 'vehicles', 'user_id', 'INT NULL');
   await addCol(p, 'vehicles', 'odo_offset', 'INT NOT NULL DEFAULT 0');
+  await addCol(p, 'vehicles', 'buy_price', 'DECIMAL(14,2) NULL');
   await addCol(p, 'part_history', 'details', 'TEXT NULL');
 }
 const mkPool = c => mysql.createPool({ host: c.host, port: c.port, user: c.user, password: c.password, database: c.database,
@@ -227,7 +229,7 @@ async function getState(uid) {
   return {
     cur: u[0] ? u[0].cur_vehicle : '',
     v: vs.map(v => ({
-      id: v.id, name: v.name, type: v.type, buyDate: v.buy_date || '', buyKm: v.buy_km, odo: v.odo, off: v.odo_offset, cc: v.currency,
+      id: v.id, name: v.name, type: v.type, buyDate: v.buy_date || '', buyKm: v.buy_km, price: v.buy_price, odo: v.odo, off: v.odo_offset, cc: v.currency,
       docs: { ins: { end: v.ins_end || '', note: v.ins_note }, ti: { end: v.ti_end || '', note: v.ti_note } },
       items: parts[v.id] || [], log: logs[v.id] || [], panels: panels[v.id] || []
     }))
@@ -250,12 +252,12 @@ async function putState(uid, s) {
       const id = T(v && v.id, 32); if (!id) continue;
       const d = v.docs || {}, ins = d.ins || {}, ti = d.ti || {};
       await c.query(
-        `INSERT INTO vehicles(id,user_id,name,type,buy_date,buy_km,odo,odo_offset,currency,ins_end,ins_note,ti_end,ti_note,sort_order)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE user_id=VALUES(user_id),name=VALUES(name),type=VALUES(type),buy_date=VALUES(buy_date),buy_km=VALUES(buy_km),
+        `INSERT INTO vehicles(id,user_id,name,type,buy_date,buy_km,buy_price,odo,odo_offset,currency,ins_end,ins_note,ti_end,ti_note,sort_order)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE user_id=VALUES(user_id),name=VALUES(name),type=VALUES(type),buy_date=VALUES(buy_date),buy_km=VALUES(buy_km),buy_price=VALUES(buy_price),
            odo=VALUES(odo),odo_offset=VALUES(odo_offset),currency=VALUES(currency),ins_end=VALUES(ins_end),ins_note=VALUES(ins_note),
            ti_end=VALUES(ti_end),ti_note=VALUES(ti_note),sort_order=VALUES(sort_order)`,
-        [id, uid, T(v.name, 200) || 'Без названия', T(v.type, 16) || 'other', D(v.buyDate), I(v.buyKm), I(v.odo), I(v.off),
+        [id, uid, T(v.name, 200) || 'Без названия', T(v.type, 16) || 'other', D(v.buyDate), I(v.buyKm), C(v.price), I(v.odo), I(v.off),
          T(v.cc, 8) || '¥', D(ins.end), T(ins.note, 500), D(ti.end), T(ti.note, 500), order++]);
       await c.query('DELETE FROM parts WHERE vehicle_id=?', [id]);          // история удаляется каскадом
       await c.query('DELETE FROM mileage_log WHERE vehicle_id=?', [id]);

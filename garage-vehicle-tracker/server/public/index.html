@@ -193,9 +193,9 @@ ru:{title:'Чек-лист для мастерской',veh:'Транспорт'
 ja:{title:'整備依頼チェックリスト',veh:'車両',mil:'走行距離',date:'日付',panel:'メーター表示',wish:'オーナーからの要望',must:'実施が必要な項目',opt:'ついでに実施できる項目（任意）',nod:'前回交換の記録なし：確認のうえ必要なら実施',work:'作業内容',why:'理由',prev:'前回交換',mech:'整備士メモ・金額',tagM:'期限超過',tagO:'任意',tagN:'記録なし',none:'急ぎの作業はありません。',nd:i=>'前回交換の記録なし。目安：'+i,
  km:(u,i,f)=>u>=i?`走行距離：${f(i)}km中${f(u)}km経過（+${f(u-i)}km）`:`走行距離：${f(i)}km中${f(u)}km経過、残り${f(i-u)}km`,mo:(u,i)=>`期間：${i}ヶ月中${u}ヶ月経過`}};
 const RT={
-ru:{panel:'Замена приборной панели',title:'Отчёт по обслуживанию',made:'Сформирован',veh:'Транспорт',type:'Тип',buy:'Дата покупки',buyKm:'Пробег при покупке',odo:'Текущий пробег',drv:'Пройдено с покупки',own:'Срок владения',docs:'Страховка и техосмотр',notSet:'не задано',left:n=>`осталось ${n} дн.`,over:n=>`просрочено на ${n} дн.`,costs:'Расходы',total:'Итого',byCat:'По категориям',state:'Состояние расходников',item:'Позиция',iv:'Интервал',last:'Последняя замена',status:'Статус',cost:'Стоимость',hist:'История замен',date:'Дата',mil:'Пробег',cmt:'Комментарий',none:'Замен пока не отмечено',km:'км',mo:'мес.',cond:'по состоянию',y:'г.',m:'мес.',cnt:'Замен',
+ru:{price:'Цена покупки',maint:'Обслуживание и запчасти',all:'Всего с покупкой',panel:'Замена приборной панели',title:'Отчёт по обслуживанию',made:'Сформирован',veh:'Транспорт',type:'Тип',buy:'Дата покупки',buyKm:'Пробег при покупке',odo:'Текущий пробег',drv:'Пройдено с покупки',own:'Срок владения',docs:'Страховка и техосмотр',notSet:'не задано',left:n=>`осталось ${n} дн.`,over:n=>`просрочено на ${n} дн.`,costs:'Расходы',total:'Итого',byCat:'По категориям',state:'Состояние расходников',item:'Позиция',iv:'Интервал',last:'Последняя замена',status:'Статус',cost:'Стоимость',hist:'История замен',date:'Дата',mil:'Пробег',cmt:'Комментарий',none:'Замен пока не отмечено',km:'км',mo:'мес.',cond:'по состоянию',y:'г.',m:'мес.',cnt:'Замен',
  st:{ok:'в норме',soon:'скоро',bad:'просрочено',none:'нет данных'},dn:{ins:'Страховка',ti:'Техосмотр'},types:{moto:'Мотоцикл',car:'Автомобиль',moped:'Мопед / скутер',other:'Другое'}},
-ja:{panel:'メーター交換',title:'整備記録レポート',made:'作成日',veh:'車両',type:'種別',buy:'購入日',buyKm:'購入時の走行距離',odo:'現在の走行距離',drv:'購入後の走行距離',own:'所有期間',docs:'保険・点検',notSet:'未設定',left:n=>`残り${n}日`,over:n=>`${n}日超過`,costs:'費用',total:'合計',byCat:'カテゴリ別',state:'消耗品の状態',item:'項目',iv:'交換目安',last:'前回交換',status:'状態',cost:'費用',hist:'交換履歴',date:'日付',mil:'走行距離',cmt:'コメント',none:'交換記録はまだありません',km:'km',mo:'ヶ月',cond:'状態による',y:'年',m:'ヶ月',cnt:'回数',
+ja:{price:'購入価格',maint:'整備・部品費用',all:'購入費込みの合計',panel:'メーター交換',title:'整備記録レポート',made:'作成日',veh:'車両',type:'種別',buy:'購入日',buyKm:'購入時の走行距離',odo:'現在の走行距離',drv:'購入後の走行距離',own:'所有期間',docs:'保険・点検',notSet:'未設定',left:n=>`残り${n}日`,over:n=>`${n}日超過`,costs:'費用',total:'合計',byCat:'カテゴリ別',state:'消耗品の状態',item:'項目',iv:'交換目安',last:'前回交換',status:'状態',cost:'費用',hist:'交換履歴',date:'日付',mil:'走行距離',cmt:'コメント',none:'交換記録はまだありません',km:'km',mo:'ヶ月',cond:'状態による',y:'年',m:'ヶ月',cnt:'回数',
  st:{ok:'良好',soon:'もうすぐ',bad:'期限超過',none:'記録なし'},dn:{ins:'保険',ti:'車検・点検'},types:{moto:'オートバイ',car:'自動車',moped:'原付・スクーター',other:'その他'}}};
 
 const $=id=>document.getElementById(id);
@@ -225,7 +225,7 @@ const save=()=>{if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(push,250)
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveT){clearTimeout(saveT);push()}});
 const V=()=>S.v.find(v=>v.id===S.cur)||S.v[0];
 const yday=()=>new Date(Date.parse(today())-864e5).toISOString().slice(0,10);
-const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥';v.off=v.off||0;v.panels=v.panels||[]};
+const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥';if(/\d/.test(v.cc)||String(v.cc).trim().length>4)v.cc='¥';v.off=v.off||0;v.panels=v.panels||[]};
 S.v.forEach(ensure);
 
 function build(type){
@@ -311,7 +311,7 @@ function renderVehicle(){
   const v=V(),tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
   $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1>${esc(v.name)}</h1></div>
   <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
-  <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
+  <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}${v.price!=null?' за '+money(v.price,v):''}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
   +(tab==='parts'?partsHtml(v):tab==='mile'?mileHtml(v):setHtml(v));
   if(tab==='mile')initChart();
 }
@@ -416,15 +416,16 @@ function vehicleDialog(type){
   dialog('Новый транспорт',[
     {n:'name',l:'Название',w:1,v:type==='moto'&&!S.v.some(x=>x.type==='moto')?'Suzuki Intruder 400 Classic':''},
     {n:'type',l:'Тип',w:1,opts:TYPES,v:type||'moto'},
-    {n:'buyDate',l:'Дата покупки',t:'date'},{n:'buyKm',l:'Пробег при покупке, км',t:'number',v:0},
-    {n:'odo',l:'Текущий пробег, км',t:'number'},{n:'cc',l:'Валюта (для стоимости)',v:'¥'},
+    {n:'buyDate',l:'Дата покупки',t:'date'},{n:'buyKm',l:'Пробег при покупке, км',t:'number',v:0},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1},
+    {n:'odo',l:'Текущий пробег, км',t:'number'},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:'¥'},
     {n:'ins',l:'Страховка действует до',t:'date'},{n:'ti',l:'Техосмотр действует до',t:'date'}],
   v=>{
     if(!v.name.trim())return 'Укажите название';
     if(!v.buyDate)return 'Укажите дату покупки';
     const buyKm=+v.buyKm||0,odo=v.odo===''?buyKm:+v.odo;
     if(odo<buyKm)return 'Текущий пробег не может быть меньше пробега при покупке';
-    const n={id:uid(),name:v.name.trim(),type:v.type,buyDate:v.buyDate,buyKm,odo,log:[{d:yday(),odo,trip:null}],items:build(v.type),cc:(v.cc||'¥').trim(),docs:{ins:{end:v.ins,note:''},ti:{end:v.ti,note:''}}};
+    if(/\d/.test((v.cc||''))||String((v.cc||'')).trim().length>4)return 'В поле валюты нужен символ (¥, ₽, $), а не сумма';
+    const n={id:uid(),name:v.name.trim(),type:v.type,buyDate:v.buyDate,buyKm,price:v.price===''?null:+v.price,odo,log:[{d:yday(),odo,trip:null}],items:build(v.type),cc:(v.cc||'¥').trim(),docs:{ins:{end:v.ins,note:''},ti:{end:v.ti,note:''}}};
     S.v.push(n);S.cur=n.id;view='veh';tab='parts';filter='all';save();render();
   },{lead:'Дата покупки и пробег нужны для расчёта пробега и срока владения. Страховку и техосмотр можно заполнить позже.'});
 }
@@ -554,8 +555,8 @@ document.addEventListener('click',e=>{
     x=>{if(!x.name.trim())return 'Укажите название';v.items.push({id:uid(),cat:x.cat.trim()||'Прочее',name:x.name.trim(),km:+x.km||0,mo:+x.mo||0,lastKm:null,lastDate:null,note:''});save();render()});
   if(t.closest('#editV'))dialog('Изменить транспорт',[
     {n:'name',l:'Название',w:1,v:v.name},{n:'buyDate',l:'Дата покупки',t:'date',v:v.buyDate},
-    {n:'buyKm',l:'Пробег при покупке, км',t:'number',v:v.buyKm},{n:'cc',l:'Валюта',v:v.cc||'¥'}],
-    x=>{if(!x.name.trim()||!x.buyDate)return 'Заполните название и дату покупки';v.name=x.name.trim();v.buyDate=x.buyDate;v.buyKm=+x.buyKm||0;v.cc=x.cc.trim()||'¥';save();render()});
+    {n:'buyKm',l:'Пробег при покупке, км',t:'number',v:v.buyKm},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1,v:v.price==null?'':v.price},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:v.cc||'¥'}],
+    x=>{if(!x.name.trim()||!x.buyDate)return 'Заполните название и дату покупки';if(/\d/.test(x.cc)||String(x.cc).trim().length>4)return 'В поле валюты нужен символ (¥, ₽, $), а не сумма';v.name=x.name.trim();v.buyDate=x.buyDate;v.buyKm=+x.buyKm||0;v.price=x.price===''?null:+x.price;v.cc=x.cc.trim()||'¥';save();render()});
   if(t.closest('#delV')&&confirm(`Удалить «${v.name}» со всеми отметками?`)){
     S.v=S.v.filter(x=>x!==v);S.cur=S.v[0]?.id||null;view='home';save();render();
   }
@@ -636,11 +637,11 @@ function renderReport(){
   $('rep').innerHTML=`${toolbar()}
   <h1>${t.title}</h1><div>${esc(v.name)}. ${t.made}: ${df(today())}</div>
   <h2>${t.veh}</h2><table class="kv">
-  <tr><td>${t.type}</td><td>${t.types[v.type]||''}</td></tr><tr><td>${t.buy}</td><td>${df(v.buyDate)}</td></tr>
+  <tr><td>${t.type}</td><td>${t.types[v.type]||''}</td></tr><tr><td>${t.buy}</td><td>${df(v.buyDate)}</td></tr>${v.price!=null?`<tr><td>${t.price}</td><td>${mon(v.price)}</td></tr>`:''}
   <tr><td>${t.buyKm}</td><td>${nf(v.buyKm)} ${t.km}</td></tr><tr><td>${t.odo}</td><td>${nf(v.odo)} ${t.km}</td></tr>
   <tr><td>${t.drv}</td><td>${nf(Math.max(0,v.odo-v.buyKm))} ${t.km}</td></tr><tr><td>${t.own}</td><td>${own}</td></tr>${(v.panels||[]).length?`<tr><td>${t.panel}</td><td>${v.panels.map(p=>`${df(p.d)}: ${nf(p.old)} → ${nf(p.nw)} ${t.km}`).join('<br>')}</td></tr>`:''}</table>
   <h2>${t.docs}</h2><table class="kv">${DOCS.map(([k])=>`<tr><td>${t.dn[k]}</td><td>${ds(k)}</td></tr>`).join('')}</table>
-  <h2>${t.costs}</h2><p><b>${t.total}: ${mon(total)}</b></p>${catRows.length?`<table><tr><th>${t.byCat}</th><th>${t.cost}</th></tr>${catRows.map(c=>`<tr><td>${esc(tr(c[0]))}</td><td class="num">${mon(c[1])}</td></tr>`).join('')}</table>`:''}
+  <h2>${t.costs}</h2><table class="kv"><tr><td>${t.maint}</td><td>${mon(total)}</td></tr>${v.price!=null?`<tr><td>${t.price}</td><td>${mon(v.price)}</td></tr><tr><td>${t.all}</td><td>${mon(total+v.price)}</td></tr>`:''}</table>${catRows.length?`<table><tr><th>${t.byCat}</th><th>${t.cost}</th></tr>${catRows.map(c=>`<tr><td>${esc(tr(c[0]))}</td><td class="num">${mon(c[1])}</td></tr>`).join('')}</table>`:''}
   <h2>${t.state}</h2>${stTbl||`<p>${t.none}</p>`}
   <h2>${t.hist}</h2>${hTbl}`;
 }
@@ -662,7 +663,8 @@ async function api(p,method='GET',body){
 }
 async function loadState(){
   const x=await api('state');S=x&&Array.isArray(x.v)?x:{cur:null,v:[]};
-  S.v.forEach(ensure);loaded=true;view='home';setSync('Подключено к MySQL');render();
+  const bad=S.v.some(v=>v.cc&&(/\d/.test(v.cc)||String(v.cc).trim().length>4));
+  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Подключено к MySQL');render();
 }
 async function boot(){
   const g=++bootGen;let st=null;
