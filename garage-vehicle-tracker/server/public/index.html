@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Учёт обслуживания транспорта</title>
+<style>
+:root{color-scheme:light dark;--bg:#e8ecef;--panel:#f6f8f9;--ink:#1b2733;--mute:#5d6b78;--line:#cfd7dd;--acc:#1f5f7a;--ok:#2e7d4f;--soon:#b87b00;--bad:#b3341f;--none:#8a97a3;--onacc:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#141b21;--panel:#1d262e;--ink:#e4eaee;--mute:#93a1ad;--line:#2f3b45;--acc:#5fb0cf;--ok:#5cc08a;--soon:#e0aa3a;--bad:#ee7a63;--none:#6f7d89;--onacc:#0c1419}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Bahnschrift,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:18px 14px 60px}
+h1{font-size:21px;margin:0 0 10px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px}
+button.p{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border-radius:999px}
+.tab.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.info{color:var(--mute);margin:0 0 12px;font-size:13.5px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.bar label{width:140px}
+.sp{flex:1}
+.docs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.doc{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--none);border-radius:6px;padding:10px 12px}
+.doc.ok{border-left-color:var(--ok)}.doc.soon{border-left-color:var(--soon)}.doc.bad{border-left-color:var(--bad)}
+.doc b{display:block}.doc .st{font-size:13px;font-weight:600}
+.doc.ok .st{color:var(--ok)}.doc.soon .st{color:var(--soon)}.doc.bad .st{color:var(--bad)}
+.sum{display:flex;gap:8px;margin:14px 0 6px;flex-wrap:wrap}
+.chip{border-radius:999px;padding:5px 12px;font-size:13px}
+.chip.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.chip b{margin-left:4px}
+h2{font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid var(--ink)}
+.row{display:grid;grid-template-columns:1fr 150px auto;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--none);border-radius:6px;padding:9px 12px;margin-bottom:6px}
+.row.ok{border-left-color:var(--ok)}.row.soon{border-left-color:var(--soon)}.row.bad{border-left-color:var(--bad)}
+.nm{font-weight:600}.meta{font-size:12.5px;color:var(--mute)}
+.row .st{font-size:12.5px;font-weight:600}
+.row.ok .st{color:var(--ok)}.row.soon .st{color:var(--soon)}.row.bad .st{color:var(--bad)}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:4px}
+.prog i{display:block;height:100%;background:var(--none)}
+.row.ok .prog i{background:var(--ok)}.row.soon .prog i{background:var(--soon)}.row.bad .prog i{background:var(--bad)}
+.acts{display:flex;gap:6px}.acts button{padding:5px 10px;font-size:13px}
+.empty{color:var(--mute);padding:30px 0;text-align:center}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:18px;width:min(440px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog h3{margin:0 0 4px;font-size:17px}
+.lead{margin:0 0 12px;font-size:13px;color:var(--mute)}
+.f{display:grid;grid-template-columns:1fr 1fr;gap:10px}.f .w{grid-column:1/-1}
+.err{color:var(--bad);font-size:13px;min-height:18px;margin:8px 0 0}
+.btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.hint{font-size:12px;color:var(--mute);margin-top:30px}
+.meta{overflow-wrap:anywhere}
+.hero{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:8px 0 22px}
+.hero h1{font-size:42px;margin:0;letter-spacing:-.5px;line-height:1.1}.hero p{margin:6px 0 0;color:var(--mute);font-size:17px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:24px 12px 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;color:var(--ink)}
+.tile svg{width:100%;max-width:190px;height:auto;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.tile svg .w{fill:var(--panel)}.tile svg .h{fill:var(--acc);stroke:none}
+.tile b{font-size:21px}.tile span{font-size:13px;color:var(--mute)}
+.tile:hover{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.panel{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:16px}
+.gh{display:flex;justify-content:space-between;align-items:end;margin-top:28px;margin-bottom:8px}.gh h2{margin:0;border:0}
+.gv{display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px}
+.gv small{display:block;color:var(--mute)}
+.badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor;margin-left:4px;white-space:nowrap}
+.badge.bad{color:var(--bad)}.badge.soon{color:var(--soon)}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}.top h1{margin:0}
+.hint2{font-size:12.5px;color:var(--mute);margin:6px 0 0}
+.chartbox{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:12px}
+.ctl{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.ctl button{padding:4px 10px;font-size:13px}
+#chart{width:100%;height:auto;touch-action:pan-y;cursor:grab;display:block;user-select:none}
+.sumtxt{margin:6px 0 0;font-size:13.5px}
+.lg{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13.5px}
+.lg button{padding:3px 9px;font-size:12.5px}
+.setrow{display:flex;justify-content:space-between;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:8px}
+.setrow span{display:block;color:var(--mute);font-size:13px}.btnr{display:flex;gap:6px}
+button.danger{color:var(--bad);border-color:var(--bad)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:92vw;text-align:center}
+.toast.show{opacity:1}
+.sync{position:fixed;left:10px;bottom:8px;font-size:11px;color:var(--mute);z-index:5}.sync.bad{color:var(--bad)}body.rep .sync{display:none}.toast.bad{background:var(--bad);color:#fff}
+@media (max-width:620px){.tiles{grid-template-columns:1fr}.hero h1{font-size:34px}.lg{grid-template-columns:1fr 1fr auto}.lg span:nth-child(3){display:none}.setrow{flex-direction:column;align-items:stretch}}
+#rep{display:none;background:#fff;color:#111;color-scheme:light;font:13px/1.45 "Segoe UI","Yu Gothic","Hiragino Sans",Meiryo,system-ui,sans-serif;padding:16px;max-width:900px;margin:0 auto}
+body.rep{background:#fff}body.rep .wrap{display:none}body.rep #rep{display:block}
+.rtool{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px;margin-bottom:14px;background:#e8ecef;border-radius:8px}
+.rtool button{background:#fff;color:#111;border-color:#999}.rtool button.p{background:#1f5f7a;border-color:#1f5f7a;color:#fff}
+.rtool label{flex-direction:row;align-items:center;color:#1b2733;font-size:13px;gap:6px}.rtool input{width:auto}
+#rep h1{font-size:20px;margin:0 0 2px}#rep h2{font-size:14px;margin:18px 0 6px;padding-bottom:3px;border-bottom:2px solid #111}#rep h3{font-size:13px;margin:12px 0 4px}
+#rep table{width:100%;border-collapse:collapse;margin-bottom:6px}
+#rep th,#rep td{border:1px solid #999;padding:3px 6px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+#rep th{background:#eee}#rep .num{text-align:right;white-space:nowrap}#rep a{color:#0b4f8a}#rep tr{break-inside:avoid}
+#rep .kv td:first-child{width:38%;font-weight:600}
+#rep .s-bad{font-weight:700;color:#a11}#rep .s-soon{font-weight:700;color:#8a5a00}
+@media print{.sync,.toast{display:none}.rtool{display:none}#rep{padding:0;max-width:none}@page{margin:12mm}}
+@media (max-width:620px){.row{grid-template-columns:1fr}.acts{justify-content:flex-end}.docs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap"><div id="main"></div></div>
+
+<dialog id="dlg">
+  <h3 id="dTitle"></h3>
+  <p class="lead" id="dLead"></p>
+  <div class="f" id="dBody"></div>
+  <p class="err" id="dErr"></p>
+  <div class="btns"><button id="dCancel">Отмена</button><button class="p" id="dOk">Сохранить</button></div>
+</dialog>
+<input id="file" type="file" accept=".json" hidden>
+<div id="rep"></div>
+<div id="toast" class="toast" role="status"></div>
+<div id="sync" class="sync"></div>
+
+<script>
+const KEY='vehicle-tracker-v2';
+const TYPES=[['moto','Мотоцикл'],['car','Автомобиль'],['moped','Мопед / скутер'],['other','Другое']];
+// Шаблоны: "название|интервал км|интервал мес."
+const TPL={
+moto:{"Двигатель и смазка":"Моторное масло|5000|12;Масляный фильтр|5000|12;Прокладка сливной пробки|5000|12;Воздушный фильтр|10000|24;Свечи зажигания|10000|24;Проверка клапанных зазоров|12000|0;Прокладки клапанных крышек|0|0",
+"Топливная система":"Топливный фильтр|15000|24;Топливные шланги|0|48;Синхронизация карбюраторов|12000|0;Ремкомплект карбюратора|0|0;Вакуумные шланги и топливный кран|0|0",
+"Охлаждение":"Антифриз|0|24;Патрубки радиатора|0|48;Крышка радиатора|0|0;Термостат|0|0",
+"Тормоза":"Передние колодки|0|0;Задние колодки / накладки|0|0;Тормозная жидкость DOT 4|0|24;Тормозные шланги|0|48;Передний тормозной диск|0|0;Задний тормозной диск|0|0;Ремкомплекты суппортов и цилиндров|0|0;Пыльники и пальцы суппорта|0|0;Болты-банджо и медные шайбы|0|0",
+"Трансмиссия и привод":"Масло главной передачи / редуктора|12000|24;Цепь и звёзды (комплект)|0|0;Смазка карданных шарниров|12000|0;Сальники заднего редуктора|0|0",
+"Сцепление и тросики":"Трос сцепления|0|0;Трос газа|0|0;Трос обогатителя|0|0;Трос спидометра|0|0;Трос заднего тормоза|0|0;Диски и пружины сцепления|0|0;Смазка тросов|5000|12",
+"Подвеска":"Масло в вилке|25000|24;Сальники и пыльники вилки|0|0;Втулки вилки|0|0;Задние амортизаторы|0|0;Подшипники маятника|0|0;Подшипники рулевой колонки|0|24",
+"Колёса и шины":"Передняя шина|0|0;Задняя шина|0|0;Камеры / вентили|0|0;Подшипники колёс|0|0;Сальники колёс|0|0;Проверка натяжения спиц|5000|6",
+"Электрика":"Аккумулятор|0|48;Предохранители|0|0;Лампы (фара / стоп / поворотники)|0|0;Реле поворотов|0|0;Щётки стартера|0|0;Регулятор напряжения|0|0;Провода и колпачки свечей|0|0",
+"Выпуск и впуск":"Прокладки выпускных фланцев|0|0;Уплотнения глушителя|0|0;Патрубки впускных коллекторов|0|0",
+"Прочее":"Грипсы|0|0;Рычаги и подножки|0|0;Смазка и фиксатор резьбы|0|0"},
+car:{"Двигатель и смазка":"Моторное масло|10000|12;Масляный фильтр|10000|12;Воздушный фильтр|20000|24;Салонный фильтр|15000|12;Свечи зажигания|30000|48;Ремень или цепь ГРМ|90000|60;Ремень навесного оборудования|60000|48",
+"Топливная система":"Топливный фильтр|40000|48",
+"Охлаждение":"Антифриз|0|48;Патрубки радиатора|0|0;Термостат|0|0;Крышка радиатора|0|0",
+"Тормоза":"Передние колодки|0|0;Задние колодки|0|0;Передние диски|0|0;Задние диски|0|0;Тормозная жидкость|0|24;Тормозные шланги|0|0",
+"Трансмиссия":"Масло КПП / АКПП|60000|48;Пыльники ШРУС|0|0;Сцепление|0|0",
+"Подвеска и рулевое":"Амортизаторы|0|0;Сайлентблоки рычагов|0|0;Шаровые опоры|0|0;Рулевые наконечники и тяги|0|0;Стойки стабилизатора|0|0;Ступичные подшипники|0|0",
+"Колёса и шины":"Летние шины|0|0;Зимние шины|0|0;Сезонная смена шин|0|6;Балансировка и развал-схождение|0|12",
+"Электрика и кузов":"Аккумулятор|0|48;Лампы|0|0;Щётки стеклоочистителя|0|12;Предохранители|0|0;Жидкость омывателя|0|0"},
+moped:{"Двигатель и смазка":"Моторное масло|2000|6;Масляный фильтр / сетка|4000|12;Воздушный фильтр|4000|12;Свеча зажигания|6000|12;Проверка клапанных зазоров|10000|0",
+"Привод (вариатор)":"Ремень вариатора|10000|0;Ролики вариатора|10000|0;Масло в редукторе|6000|12;Сцепление и колокол|0|0",
+"Тормоза":"Передние колодки|0|0;Задние колодки|0|0;Тормозная жидкость|0|24;Тормозные шланги|0|48",
+"Тросики":"Трос газа|0|0;Трос тормоза|0|0;Трос спидометра|0|0",
+"Подвеска":"Масло в вилке|0|24;Сальники вилки|0|0;Задний амортизатор|0|0",
+"Колёса и шины":"Передняя шина|0|0;Задняя шина|0|0;Камеры|0|0;Подшипники колёс|0|0",
+"Электрика":"Аккумулятор|0|36;Лампы|0|0;Предохранители|0|0"},
+other:{}};
+const DOCS=[['ins','Страховка'],['ti','Техосмотр']];
+// Японские названия для отчёта (свои позиции остаются как введены)
+const JA={"Двигатель и смазка":"エンジン・潤滑","Топливная система":"燃料系","Охлаждение":"冷却系","Тормоза":"ブレーキ","Трансмиссия и привод":"駆動系","Сцепление и тросики":"クラッチ・ケーブル","Подвеска":"サスペンション","Колёса и шины":"ホイール・タイヤ","Электрика":"電装","Выпуск и впуск":"吸排気","Прочее":"その他","Трансмиссия":"トランスミッション","Подвеска и рулевое":"サスペンション・ステアリング","Электрика и кузов":"電装・ボディ","Привод (вариатор)":"駆動（Vベルト）","Тросики":"ケーブル",
+"Моторное масло":"エンジンオイル","Масляный фильтр":"オイルフィルター","Прокладка сливной пробки":"ドレンワッシャー","Воздушный фильтр":"エアフィルター","Свечи зажигания":"スパークプラグ","Проверка клапанных зазоров":"バルブクリアランス点検","Прокладки клапанных крышек":"ヘッドカバーパッキン","Топливный фильтр":"燃料フィルター","Топливные шланги":"燃料ホース","Синхронизация карбюраторов":"キャブレター同調","Ремкомплект карбюратора":"キャブレターオーバーホールキット","Вакуумные шланги и топливный кран":"バキュームホース・燃料コック","Антифриз":"冷却水（LLC）","Патрубки радиатора":"ラジエターホース","Крышка радиатора":"ラジエターキャップ","Термостат":"サーモスタット",
+"Передние колодки":"フロントブレーキパッド","Задние колодки / накладки":"リアブレーキパッド／シュー","Тормозная жидкость DOT 4":"ブレーキフルード（DOT4）","Тормозные шланги":"ブレーキホース","Передний тормозной диск":"フロントブレーキディスク","Задний тормозной диск":"リアブレーキディスク","Ремкомплекты суппортов и цилиндров":"キャリパー・マスターシリンダーのシールキット","Пыльники и пальцы суппорта":"キャリパーのブーツ・スライドピン","Болты-банджо и медные шайбы":"バンジョーボルト・銅ワッシャー",
+"Масло главной передачи / редуктора":"ファイナルギヤオイル","Цепь и звёзды (комплект)":"チェーン・スプロケットセット","Смазка карданных шарниров":"ユニバーサルジョイントのグリス","Сальники заднего редуктора":"リアデフのオイルシール","Трос сцепления":"クラッチケーブル","Трос газа":"スロットルケーブル","Трос обогатителя":"チョークケーブル","Трос спидометра":"スピードメーターケーブル","Трос заднего тормоза":"リアブレーキケーブル","Диски и пружины сцепления":"クラッチプレート・スプリング","Смазка тросов":"ケーブル給油",
+"Масло в вилке":"フォークオイル","Сальники и пыльники вилки":"フォークシール・ダストシール","Втулки вилки":"フォークブッシュ","Задние амортизаторы":"リアサスペンション","Подшипники маятника":"スイングアームベアリング","Подшипники рулевой колонки":"ステムベアリング","Передняя шина":"フロントタイヤ","Задняя шина":"リアタイヤ","Камеры / вентили":"チューブ・エアバルブ","Подшипники колёс":"ホイールベアリング","Сальники колёс":"ホイールシール","Проверка натяжения спиц":"スポークの張り点検",
+"Аккумулятор":"バッテリー","Предохранители":"ヒューズ","Лампы (фара / стоп / поворотники)":"電球（ヘッド・テール・ウインカー）","Реле поворотов":"ウインカーリレー","Щётки стартера":"スターターブラシ","Регулятор напряжения":"レギュレーター","Провода и колпачки свечей":"プラグコード・プラグキャップ","Прокладки выпускных фланцев":"エキゾーストガスケット","Уплотнения глушителя":"マフラーのシール","Патрубки впускных коллекторов":"インテークマニホールドのゴム","Грипсы":"グリップ","Рычаги и подножки":"レバー・ステップ","Смазка и фиксатор резьбы":"グリス・ネジロック剤",
+"Салонный фильтр":"エアコンフィルター","Ремень или цепь ГРМ":"タイミングベルト／チェーン","Ремень навесного оборудования":"補機ベルト","Задние колодки":"リアブレーキパッド","Передние диски":"フロントディスク","Задние диски":"リアディスク","Тормозная жидкость":"ブレーキフルード","Масло КПП / АКПП":"ミッション／ATFオイル","Пыльники ШРУС":"ドライブシャフトブーツ","Сцепление":"クラッチ","Амортизаторы":"ショックアブソーバー","Сайлентблоки рычагов":"アームのブッシュ","Шаровые опоры":"ボールジョイント","Рулевые наконечники и тяги":"タイロッドエンド","Стойки стабилизатора":"スタビライザーリンク","Ступичные подшипники":"ハブベアリング","Летние шины":"夏タイヤ","Зимние шины":"冬タイヤ（スタッドレス）","Сезонная смена шин":"タイヤ交換（季節）","Балансировка и развал-схождение":"バランス調整・アライメント","Лампы":"電球","Щётки стеклоочистителя":"ワイパーブレード","Жидкость омывателя":"ウォッシャー液",
+"Масляный фильтр / сетка":"オイルフィルター／ストレーナー","Свеча зажигания":"スパークプラグ","Ремень вариатора":"Vベルト","Ролики вариатора":"ウエイトローラー","Масло в редукторе":"ギヤオイル","Сцепление и колокол":"クラッチ・ケース","Трос тормоза":"ブレーキケーブル","Сальники вилки":"フォークシール","Задний амортизатор":"リアショック","Камеры":"チューブ"};
+const RT={
+ru:{title:'Отчёт по обслуживанию',made:'Сформирован',veh:'Транспорт',type:'Тип',buy:'Дата покупки',buyKm:'Пробег при покупке',odo:'Текущий пробег',drv:'Пройдено с покупки',own:'Срок владения',docs:'Страховка и техосмотр',notSet:'не задано',left:n=>`осталось ${n} дн.`,over:n=>`просрочено на ${n} дн.`,costs:'Расходы',total:'Итого',byCat:'По категориям',state:'Состояние расходников',item:'Позиция',iv:'Интервал',last:'Последняя замена',status:'Статус',cost:'Стоимость',hist:'История замен',date:'Дата',mil:'Пробег',cmt:'Комментарий',none:'Замен пока не отмечено',km:'км',mo:'мес.',cond:'по состоянию',y:'г.',m:'мес.',cnt:'Замен',
+ st:{ok:'в норме',soon:'скоро',bad:'просрочено',none:'нет данных'},dn:{ins:'Страховка',ti:'Техосмотр'},types:{moto:'Мотоцикл',car:'Автомобиль',moped:'Мопед / скутер',other:'Другое'}},
+ja:{title:'整備記録レポート',made:'作成日',veh:'車両',type:'種別',buy:'購入日',buyKm:'購入時の走行距離',odo:'現在の走行距離',drv:'購入後の走行距離',own:'所有期間',docs:'保険・点検',notSet:'未設定',left:n=>`残り${n}日`,over:n=>`${n}日超過`,costs:'費用',total:'合計',byCat:'カテゴリ別',state:'消耗品の状態',item:'項目',iv:'交換目安',last:'前回交換',status:'状態',cost:'費用',hist:'交換履歴',date:'日付',mil:'走行距離',cmt:'コメント',none:'交換記録はまだありません',km:'km',mo:'ヶ月',cond:'状態による',y:'年',m:'ヶ月',cnt:'回数',
+ st:{ok:'良好',soon:'もうすぐ',bad:'期限超過',none:'記録なし'},dn:{ins:'保険',ti:'車検・点検'},types:{moto:'オートバイ',car:'自動車',moped:'原付・スクーター',other:'その他'}}};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>Number(n).toLocaleString('ru-RU');
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const dfmt=d=>new Date(d).toLocaleDateString('ru-RU',{timeZone:'UTC'});
+const addMonths=(d,m)=>{const x=new Date(d);if(isNaN(x))return'';x.setUTCMonth(x.getUTCMonth()+(+m||0));return x.toISOString().slice(0,10)};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+const lk=s=>esc(s).replace(/(https?:\/\/[^\s<]+)/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+const H=it=>it.hist&&it.hist.length?it.hist:((it.lastDate||it.lastKm!=null)?[{d:it.lastDate,km:it.lastKm,cost:null,note:''}]:[]);
+const relast=it=>{const h=H(it),m=h[h.length-1];it.lastDate=m?m.d:null;it.lastKm=m?m.km:null};
+const money=(n,v)=>fmt(n)+' '+(v.cc||'¥');
+
+let S={cur:null,v:[]},filter='all',loaded=false,saveT=null;
+const setSync=(t,bad)=>{const el=$('sync');if(el){el.textContent=t;el.className='sync'+(bad?' bad':'')}};
+async function push(){
+  saveT=null;setSync('Сохранение…');
+  try{
+    const r=await fetch('api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)});
+    if(!r.ok)throw new Error(r.status);
+    setSync('Сохранено в MySQL');
+  }catch(e){setSync('Ошибка сохранения в базу',1);toast('Не удалось сохранить в базу данных. Проверьте, что приложение запущено.',1)}
+}
+const save=()=>{if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(push,250)};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveT){clearTimeout(saveT);push()}});
+const V=()=>S.v.find(v=>v.id===S.cur)||S.v[0];
+const yday=()=>new Date(Date.parse(today())-864e5).toISOString().slice(0,10);
+const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥'};
+S.v.forEach(ensure);
+
+function build(type){
+  const out=[];
+  for(const cat in TPL[type]||{})TPL[type][cat].split(';').forEach(s=>{const p=s.split('|');out.push({id:uid(),cat,name:p[0],km:+p[1],mo:+p[2],lastKm:null,lastDate:null,note:''})});
+  return out;
+}
+function itemStatus(it,odo){
+  if(it.lastKm==null&&!it.lastDate)return{k:'none',t:'нет данных',p:0};
+  if(!it.km&&!it.mo)return{k:'none',t:'без интервала',p:0};
+  let r=0,left=null;
+  if(it.km&&it.lastKm!=null){const u=odo-it.lastKm;r=u/it.km;left=it.km-u}
+  if(it.mo&&it.lastDate)r=Math.max(r,(Date.now()-Date.parse(it.lastDate))/2629800000/it.mo);
+  const k=r>=1?'bad':r>=.8?'soon':'ok';
+  let t=k==='bad'?'просрочено':k==='soon'?'скоро':'в норме';
+  if(left!=null)t+=left<0?` (на ${fmt(-left)} км)`:` (ещё ${fmt(left)} км)`;
+  return{k,t,p:Math.min(r,1)*100,left};
+}
+function docStatus(d){
+  if(!d||!d.end)return{k:'none',t:'Дата не задана'};
+  const n=Math.round((Date.parse(d.end)-Date.parse(today()))/864e5);
+  if(n<0)return{k:'bad',t:`Просрочено на ${-n} дн.`};
+  if(n<=30)return{k:'soon',t:n===0?'Истекает сегодня':`Осталось ${n} дн.`};
+  return{k:'ok',t:`Осталось ${n} дн.`};
+}
+function owned(v){
+  const m=Math.max(0,Math.floor((Date.now()-Date.parse(v.buyDate))/2629800000)),y=Math.floor(m/12),r=m%12;
+  return [y?y+' г.':'',r||!y?r+' мес.':''].filter(Boolean).join(' ');
+}
+
+let view='home',tab='parts',homeType='',CD=[],CH={a:0,n:30,sel:-1};
+
+// ---- учёт пробега: запись = {d: дата, odo: показание на конец дня, trip: км за день} ----
+const recalc=v=>{const L=v.log;L.sort((a,b)=>a.d.localeCompare(b.d));L.forEach((e,i)=>e.trip=i?e.odo-L[i-1].odo:null);v.odo=L[L.length-1].odo};
+function setReading(v,d,r){
+  const L=v.log,p=L.filter(e=>e.d<d).length-1,i=L.findIndex(e=>e.d===d);
+  if(p<0)return 'Дата раньше начала учёта ('+dfmt(L[0].d)+')';
+  const prev=L[p].odo;if(r<prev)return `Показание меньше предыдущего (${fmt(prev)} км)`;
+  const nx=L.find(e=>e.d>d);if(nx&&r>nx.odo)return `Показание больше следующей записи (${fmt(nx.odo)} км)`;
+  if(i>=0)L[i].odo=r;else L.push({d,odo:r,trip:0});
+  recalc(v);return 0;
+}
+function addTrip(v,d,t){
+  const L=v.log,p=L.filter(e=>e.d<d).length-1;
+  if(p<0)return 'Дата раньше начала учёта ('+dfmt(L[0].d)+')';
+  if(!(t>0))return 'Введите число километров больше нуля';
+  const i=L.findIndex(e=>e.d===d);
+  if(i>=0)L[i].odo+=t;else L.push({d,odo:L[p].odo+t,trip:0});
+  L.forEach(e=>{if(e.d>d)e.odo+=t});
+  recalc(v);return 0;
+}
+let tt;function toast(m,bad){const el=$('toast');el.textContent=m;el.className='toast show'+(bad?' bad':'');clearTimeout(tt);tt=setTimeout(()=>el.className='toast',3000)}
+
+// ---- главная ----
+const ICONS={
+car:'<svg viewBox="0 0 130 66"><path d="M8 48V37q0-6 7-7l20-4 13-13q3-3 7-3h31q4 0 8 3l13 13 14 3q6 1 6 8v11z"/><path d="M45 26l10-11h14v11zM76 15h8q2 0 4 2l9 9H76z"/><circle class="w" cx="36" cy="48" r="11"/><circle class="w" cx="94" cy="48" r="11"/><circle class="h" cx="36" cy="48" r="3"/><circle class="h" cx="94" cy="48" r="3"/></svg>',
+moto:'<svg viewBox="0 0 130 66"><path d="M104 46L90 14M83 12h13"/><path d="M48 28q2-8 14-8h14q6 0 8 4l-2 4z"/><path d="M22 27q14-5 26-5"/><path d="M52 32v12h22V34M52 44l-24 2M74 44l16-4M54 52h30"/><circle class="w" cx="28" cy="46" r="14"/><circle class="w" cx="104" cy="46" r="14"/><circle class="h" cx="28" cy="46" r="3.5"/><circle class="h" cx="104" cy="46" r="3.5"/></svg>',
+moped:'<svg viewBox="0 0 130 66"><path d="M100 50L88 14M81 12h14"/><path d="M40 40h40q4 0 6-4l2-8"/><path d="M12 36q0-14 16-14h12l8 18"/><path d="M18 24h26"/><path d="M88 30q10-2 16 6"/><circle class="w" cx="30" cy="50" r="10"/><circle class="w" cx="100" cy="50" r="10"/><circle class="h" cx="30" cy="50" r="3"/><circle class="h" cx="100" cy="50" r="3"/></svg>'};
+function alerts(v){
+  const a=[],b=v.items.filter(it=>itemStatus(it,v.odo).k==='bad').length,c=v.items.filter(it=>itemStatus(it,v.odo).k==='soon').length;
+  if(b)a.push(['bad','просрочено: '+b]);if(c)a.push(['soon','скоро: '+c]);
+  DOCS.forEach(([k,n])=>{const s=docStatus(v.docs[k]);if(s.k==='bad'||s.k==='soon')a.push([s.k,n+': '+s.t.toLowerCase()])});
+  return a;
+}
+function renderHome(){
+  const cnt=k=>S.v.filter(v=>v.type===k).length,list=S.v.filter(v=>!homeType||v.type===homeType);
+  $('main').innerHTML=`<div class="hero"><div><h1>Привет!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
+  ${homeSet?`<div class="panel"><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button><span class="meta">Резервная копия всего транспорта в файле JSON</span></div>`:''}
+  <div class="tiles">${[['car','Автомобиль'],['moto','Мотоцикл'],['moped','Мопед']].map(([k,n])=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${n}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>
+  ${S.v.length?`<div class="gh"><h2>Мой транспорт</h2><span class="btnr">${homeType?'<button id="allV">Показать всё</button>':''}<button id="addV">Добавить транспорт</button></span></div>`
+   +list.map(v=>`<button class="gv" data-open="${v.id}"><span><b>${esc(v.name)}</b><small>${(TYPES.find(t=>t[0]===v.type)||[0,''])[1]}, ${fmt(v.odo)} км</small></span><span>${alerts(v).map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></button>`).join(''):''}`;
+}
+let homeSet=false;
+
+// ---- страница транспорта ----
+const mileBar=v=>`<div class="bar"><label>Показание одометра, км<input id="odo" type="number" min="0" inputmode="numeric" value="${v.odo}"></label>
+  <button class="p" id="saveOdo">Сохранить пробег</button><button id="dayBtn">Суточный пробег</button>${tab==='parts'?'<span class="sp"></span><button id="add">Добавить позицию</button>':''}</div>
+  <p class="hint2">Впишите показание счётчика: разница с предыдущей записью попадёт в график. Или нажмите «Суточный пробег» и введите километры за день.</p>`;
+function renderVehicle(){
+  const v=V(),tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
+  $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1>${esc(v.name)}</h1></div>
+  <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
+  <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.</p>`
+  +(tab==='parts'?partsHtml(v):tab==='mile'?mileHtml(v):setHtml(v));
+  if(tab==='mile')initChart();
+}
+function partsHtml(v){
+  const groups={},cnt={bad:0,soon:0,ok:0,none:0};
+  v.items.forEach(it=>{const s=itemStatus(it,v.odo);cnt[s.k]++;(groups[it.cat]=groups[it.cat]||[]).push([it,s])});
+  const chips=[['all','Все',v.items.length],['bad','Просрочено',cnt.bad],['soon','Скоро',cnt.soon],['ok','В норме',cnt.ok],['none','Нет данных',cnt.none]];
+  let list='';
+  for(const cat in groups){
+    const rows=groups[cat].filter(([it,s])=>filter==='all'||s.k===filter);
+    if(!rows.length)continue;
+    list+=`<h2>${esc(cat)}</h2>`+rows.map(([it,s])=>{
+      const iv=[it.km?fmt(it.km)+' км':'',it.mo?it.mo+' мес.':''].filter(Boolean).join(' / ')||'по состоянию';
+      const h=H(it),e=h[h.length-1];
+      const last=e?`Заменено: ${e.d?dfmt(e.d):'—'}${e.km!=null?', '+fmt(e.km)+' км':''}${e.cost!=null?', '+money(e.cost,v):''}${h.length>1?` (замен: ${h.length})`:''}`:'Замена не отмечена';
+      return `<div class="row ${s.k}"><div><div class="nm">${esc(it.name)}</div><div class="meta">Интервал: ${iv}. ${last}${e&&e.note?'. '+lk(e.note):''}${it.note?'. '+lk(it.note):''}</div></div>
+      <div><div class="st">${s.t}</div><div class="prog"><i style="width:${s.p}%"></i></div></div>
+      <div class="acts"><button class="p" data-a="done" data-id="${it.id}">Заменил</button><button data-a="edit" data-id="${it.id}">Изменить</button></div></div>`}).join('');
+  }
+  return `${mileBar(v)}
+  <div class="docs">${DOCS.map(([k,t])=>{const d=v.docs[k],s=docStatus(d);
+    return `<div class="doc ${s.k}"><div><b>${t}</b><span class="st">${s.t}</span>${d.end?`<div class="meta">до ${dfmt(d.end)}${d.note?'. '+lk(d.note):''}</div>`:''}</div><button data-doc="${k}">${d.end?'Продлить':'Задать срок'}</button></div>`}).join('')}</div>
+  <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}</div>
+  ${list||'<div class="empty">Здесь пока ничего нет</div>'}
+  <p class="hint">Данные хранятся в браузере (localStorage). Интервалы ориентировочные: сверьте их с сервис-мануалом и поправьте кнопкой «Изменить».</p>`;
+}
+function mileHtml(v){
+  const L=v.log.map((e,i)=>({e,i})).reverse().slice(0,60);
+  return `${mileBar(v)}
+  <div class="chartbox"><div class="ctl">${[['7','7 дн.'],['30','30 дн.'],['90','90 дн.'],['365','Год'],['all','Всё']].map(([k,n])=>`<button data-rng="${k}">${n}</button>`).join('')}<span class="sp"></span><button id="zout" aria-label="Уменьшить масштаб">−</button><button id="zin" aria-label="Увеличить масштаб">+</button></div>
+  <svg id="chart" viewBox="0 0 800 300" role="img" aria-label="График пробега по дням"></svg>
+  <div class="meta" id="chInfo"></div><p class="sumtxt" id="chSum"></p></div>
+  <h2>Записи пробега</h2>${L.map(({e,i})=>`<div class="lg"><span>${dfmt(e.d)}</span><span>${fmt(e.odo)} км</span><span>${i?'+'+fmt(e.trip)+' км':'начало учёта'}</span>${i?`<button data-del="${i}">Удалить</button>`:'<span></span>'}</div>`).join('')}
+  <p class="hint">Если пропустили дни, пробег запишется на день ввода: разница считается с предыдущей записи. При удалении записи её километры переходят на следующую.</p>`;
+}
+const setHtml=v=>`<div class="setrow"><div><b>Данные транспорта</b><span>Название, дата покупки, пробег при покупке, валюта</span></div><button id="editV">Изменить транспорт</button></div>
+  <div class="setrow"><div><b>Отчёт для печати</b><span>На русском или японском: история замен, стоимость, комментарии</span></div><button id="repBtn">Открыть отчёт</button></div>
+  <div class="setrow"><div><b>Резервная копия</b><span>Экспорт и импорт всех данных в файл JSON</span></div><span class="btnr"><button id="exp">Экспорт</button><button id="imp">Импорт</button></span></div>
+  <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>`;
+
+// ---- график ----
+function chartDays(v){
+  const L=v.log,map={},res=[];L.forEach(e=>map[e.d]=e);
+  const last=Math.max(Date.parse(today()),Date.parse(L[L.length-1].d));let odo=L[0].odo;
+  for(let t=Date.parse(L[0].d);t<=last;t+=864e5){const d=new Date(t).toISOString().slice(0,10),e=map[d];if(e)odo=e.odo;res.push({d,trip:e&&e.trip!=null?e.trip:0,odo})}
+  return res;
+}
+function setRange(k){const N=CD.length;CH.n=k==='all'?N:+k;CH.a=N-CH.n;CH.sel=-1;drawChart()}
+function zoomBy(f,fr=.5){fr=Math.max(0,Math.min(1,fr));const o=CH.n;CH.n=Math.max(Math.min(7,CD.length),Math.min(CD.length,o*f));CH.a+=(o-CH.n)*fr;drawChart()}
+function drawChart(){
+  const N=CD.length;CH.n=Math.max(Math.min(7,N),Math.min(CH.n,N));CH.a=Math.max(0,Math.min(CH.a,N-CH.n));
+  const W=800,Ht=300,ml=46,mr=10,mt=12,mb=28,pw=W-ml-mr,ph=Ht-mt-mb,i0=Math.floor(CH.a),i1=Math.min(N,Math.ceil(CH.a+CH.n)),vis=CD.slice(i0,i1);
+  const mx=Math.max(10,...vis.map(d=>d.trip)),pp=Math.pow(10,Math.floor(Math.log10(mx))),ym=[1,2,2.5,5,10].find(f=>f*pp>=mx)*pp,bw=pw/CH.n;
+  let g='',bars='',lab='';const st=Math.max(1,Math.ceil(CH.n/6));
+  for(let k=0;k<=4;k++){const y=mt+ph-ph*k/4;g+=`<line x1="${ml}" x2="${W-mr}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${ml-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--mute)">${fmt(Math.round(ym*k/4*10)/10)}</text>`}
+  vis.forEach((d,j)=>{const i=i0+j,x=ml+(i-CH.a)*bw,h=d.trip?Math.max(1,d.trip/ym*ph):0;
+    bars+=`<rect x="${x+bw*.1}" y="${mt+ph-h}" width="${Math.max(1,bw*.8)}" height="${h}" fill="${i===CH.sel?'var(--soon)':'var(--acc)'}"/>`;
+    if(i%st===0)lab+=`<text x="${x+bw/2}" y="${Ht-8}" text-anchor="middle" font-size="11" fill="var(--mute)">${d.d.slice(8)}.${d.d.slice(5,7)}</text>`});
+  $('chart').innerHTML=`<defs><clipPath id="cp"><rect x="${ml}" y="0" width="${pw}" height="${Ht}"/></clipPath></defs>${g}<g clip-path="url(#cp)">${bars}${lab}</g>`;
+  const sum=vis.reduce((a,d)=>a+d.trip,0),top=vis.reduce((a,d)=>d.trip>a.trip?d:a,vis[0]),sel=CD[CH.sel];
+  $('chSum').textContent=`За период (${vis.length} дн.): ${fmt(sum)} км, в среднем ${fmt(Math.round(sum/vis.length))} км в день, максимум ${fmt(top.trip)} км (${dfmt(top.d)}).`;
+  $('chInfo').textContent=sel?`${dfmt(sel.d)}: проехано ${fmt(sel.trip)} км, одометр ${fmt(sel.odo)} км`:'Нажмите на столбец, чтобы увидеть день. Колесо мыши, щипок и кнопки +/− меняют масштаб, перетаскивание сдвигает график.';
+}
+function initChart(){
+  CD=chartDays(V());CH={a:CD.length-30,n:30,sel:-1};drawChart();
+  const sv=$('chart'),pts=new Map();let moved=false,pin=0,sx=0;
+  const geo=e=>{const r=sv.getBoundingClientRect();return{fr:((e.clientX-r.left)/r.width*800-46)/744,k:800/r.width/744}};
+  const pick=e=>{const fr=geo(e).fr,i=Math.floor(CH.a+fr*CH.n);if(fr>=0&&fr<=1&&i>=0&&i<CD.length&&CH.sel!==i){CH.sel=i;drawChart()}};
+  const dist=()=>{const a=[...pts.values()];return Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY)};
+  sv.onpointerdown=e=>{sv.setPointerCapture(e.pointerId);pts.set(e.pointerId,e);moved=false;sx=e.clientX;if(pts.size===2)pin=dist()};
+  sv.onpointermove=e=>{
+    if(!pts.has(e.pointerId))return pick(e);
+    const o=pts.get(e.pointerId);pts.set(e.pointerId,e);
+    if(pts.size===2){const d=dist();if(pin&&d>0)zoomBy(pin/d,geo(e).fr);pin=d;moved=true;return}
+    if(Math.abs(e.clientX-sx)>4)moved=true;
+    if(moved){CH.a-=(e.clientX-o.clientX)*geo(e).k*CH.n;drawChart()}
+  };
+  sv.onpointerup=e=>{if(!moved)pick(e);pts.delete(e.pointerId);pin=0};
+  sv.onpointercancel=e=>{pts.delete(e.pointerId);pin=0};
+  sv.onwheel=e=>{e.preventDefault();zoomBy(e.deltaY>0?1.25:.8,geo(e).fr)};
+}
+function render(){if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}}
+
+let onOk=null,lock=false;
+function dialog(title,fields,ok,o={}){
+  $('dTitle').textContent=title;$('dLead').textContent=o.lead||'';$('dErr').textContent='';
+  $('dBody').innerHTML=fields.map(f=>{
+    const c=f.opts?`<select id="f_${f.n}">${f.opts.map(p=>`<option value="${p[0]}" ${p[0]===f.v?'selected':''}>${p[1]}</option>`).join('')}</select>`
+      :`<input id="f_${f.n}" type="${f.t||'text'}" value="${esc(f.v??'')}" ${f.t==='number'?'min="0" inputmode="numeric"':''}>`;
+    return `<label class="${f.w?'w':''}">${f.l}${c}</label>`}).join('');
+  lock=!!o.lock;$('dCancel').hidden=lock;
+  onOk=()=>{const v={};fields.forEach(f=>v[f.n]=$('f_'+f.n).value);const r=ok(v);if(typeof r==='string'){$('dErr').textContent=r;return}$('dlg').close()};
+  $('dlg').showModal();if(o.after)o.after();
+}
+$('dlg').addEventListener('cancel',e=>{if(lock)e.preventDefault()});
+$('dOk').onclick=()=>onOk&&onOk();
+$('dCancel').onclick=()=>$('dlg').close();
+
+function vehicleDialog(type){
+  dialog('Новый транспорт',[
+    {n:'name',l:'Название',w:1,v:type==='moto'&&!S.v.some(x=>x.type==='moto')?'Suzuki Intruder 400 Classic':''},
+    {n:'type',l:'Тип',w:1,opts:TYPES,v:type||'moto'},
+    {n:'buyDate',l:'Дата покупки',t:'date'},{n:'buyKm',l:'Пробег при покупке, км',t:'number',v:0},
+    {n:'odo',l:'Текущий пробег, км',t:'number'},{n:'cc',l:'Валюта (для стоимости)',v:'¥'},
+    {n:'ins',l:'Страховка действует до',t:'date'},{n:'ti',l:'Техосмотр действует до',t:'date'}],
+  v=>{
+    if(!v.name.trim())return 'Укажите название';
+    if(!v.buyDate)return 'Укажите дату покупки';
+    const buyKm=+v.buyKm||0,odo=v.odo===''?buyKm:+v.odo;
+    if(odo<buyKm)return 'Текущий пробег не может быть меньше пробега при покупке';
+    const n={id:uid(),name:v.name.trim(),type:v.type,buyDate:v.buyDate,buyKm,odo,log:[{d:yday(),odo,trip:null}],items:build(v.type),cc:(v.cc||'¥').trim(),docs:{ins:{end:v.ins,note:''},ti:{end:v.ti,note:''}}};
+    S.v.push(n);S.cur=n.id;view='veh';tab='parts';filter='all';save();render();
+  },{lead:'Дата покупки и пробег нужны для расчёта пробега и срока владения. Страховку и техосмотр можно заполнить позже.'});
+}
+
+function docDialog(k){
+  const v=V(),d=v.docs[k],title=DOCS.find(x=>x[0]===k)[1];
+  dialog(title,[
+    {n:'start',l:'Дата начала',t:'date',v:today()},{n:'term',l:'Срок, мес.',t:'number',v:24},
+    {n:'end',l:'Дата окончания (можно изменить вручную)',t:'date',w:1,v:d.end||addMonths(today(),24)},
+    {n:'note',l:'Заметка (номер полиса, компания)',w:1,v:d.note}],
+  x=>{v.docs[k]={end:x.end,note:x.note};save();render()},
+  {lead:'Срок по умолчанию 24 месяца. Дата окончания пересчитывается при смене начала или срока, но её можно поставить любой.',
+   after(){const up=()=>{const e=addMonths($('f_start').value,$('f_term').value);if(e)$('f_end').value=e};$('f_start').oninput=up;$('f_term').oninput=up}});
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target,v=V();
+  if(t.closest('#rClose')){document.body.classList.remove('rep');return}
+  if(t.closest('#rPrint'))return window.print();
+  const rl=t.closest('[data-rl]');if(rl){RL=rl.dataset.rl;return renderReport()}
+  if(t.closest('#repBtn')){document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
+  if(t.closest('#homeSet')){homeSet=!homeSet;return render()}
+  if(t.closest('#exp')){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='vehicles-'+today()+'.json';a.click();return}
+  if(t.closest('#imp'))return $('file').click();
+  const ty=t.closest('[data-type]');
+  if(ty){const k=ty.dataset.type,l=S.v.filter(x=>x.type===k);
+    if(!l.length)return vehicleDialog(k);
+    if(l.length===1){S.cur=l[0].id;view='veh';tab='parts';filter='all';save();return render()}
+    homeType=k;return render()}
+  const op=t.closest('[data-open]');if(op){S.cur=op.dataset.open;view='veh';tab='parts';filter='all';save();return render()}
+  if(t.closest('#addV'))return vehicleDialog(homeType||'moto');
+  if(t.closest('#allV')){homeType='';return render()}
+  if(t.closest('#goHome')){view='home';return render()}
+  const tb=t.closest('[data-tab]');if(tb){tab=tb.dataset.tab;return render()}
+  if(!v)return;
+  const f=t.closest('[data-f]');if(f){filter=f.dataset.f;return render()}
+  const dk=t.closest('[data-doc]');if(dk)return docDialog(dk.dataset.doc);
+  const rg=t.closest('[data-rng]');if(rg)return setRange(rg.dataset.rng);
+  if(t.closest('#zin'))return zoomBy(.7);
+  if(t.closest('#zout'))return zoomBy(1/.7);
+  const dl=t.closest('[data-del]');
+  if(dl){const i=+dl.dataset.del;if(i>0&&confirm('Удалить запись о пробеге за '+dfmt(v.log[i].d)+'?')){v.log.splice(i,1);recalc(v);save();render()}return}
+  if(t.closest('#saveOdo')){
+    const x=$('odo').value;if(x==='')return toast('Введите показание одометра',1);
+    const r=setReading(v,today(),+x);if(r)return toast(r,1);
+    save();const e=v.log.find(q=>q.d===today());render();return toast(`Записано: +${fmt(e.trip)} км за сегодня, одометр ${fmt(v.odo)} км`);
+  }
+  if(t.closest('#dayBtn'))return dialog('Суточный пробег',[
+    {n:'date',l:'Дата',t:'date',v:today()},{n:'km',l:'Проехал за день, км',t:'number',w:1}],
+    x=>{const d=x.date||today(),r=addTrip(v,d,+x.km);if(r)return r;save();render();toast(`Записано: +${fmt(+x.km)} км за ${dfmt(d)}, одометр ${fmt(v.odo)} км`)},
+    {lead:'Сколько километров проехали за день. Показание одометра увеличится на это число. Несколько поездок за день складываются.'});
+  const b=t.closest('[data-a]');
+  if(b){
+    const it=v.items.find(x=>x.id===b.dataset.id);
+    if(b.dataset.a==='done')dialog('Замена: '+it.name,[
+      {n:'date',l:'Дата',t:'date',v:today()},{n:'km',l:'Пробег, км',t:'number',v:v.odo},
+      {n:'cost',l:'Стоимость, '+(v.cc||'¥'),t:'number',w:1},
+      {n:'note',l:'Комментарий (место замены, ссылка на Google Карты)',w:1}],
+      x=>{const km=x.km===''?v.odo:+x.km;it.hist=H(it).slice();it.hist.push({d:x.date||today(),km,cost:x.cost===''?null:+x.cost,note:x.note.trim()});it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);if(km>v.odo)setReading(v,today(),km);save();render()});
+    else dialog('Изменить: '+it.name,[
+      {n:'name',l:'Название',w:1,v:it.name},{n:'km',l:'Интервал, км (0 — нет)',t:'number',v:it.km},{n:'mo',l:'Интервал, мес. (0 — нет)',t:'number',v:it.mo},
+      {n:'note',l:'Заметка',w:1,v:it.note},...(H(it).length?[{n:'undo',l:'Последняя запись о замене',w:1,opts:[['','Оставить'],['1','Удалить']],v:''}]:[])],
+      x=>{it.name=x.name||it.name;it.km=+x.km||0;it.mo=+x.mo||0;it.note=x.note;if(x.undo){it.hist=H(it).slice();it.hist.pop();relast(it)}save();render()});
+    return;
+  }
+  if(t.closest('#add'))dialog('Новая позиция',[
+    {n:'cat',l:'Категория',w:1,v:'Прочее'},{n:'name',l:'Название',w:1},
+    {n:'km',l:'Интервал, км',t:'number',v:0},{n:'mo',l:'Интервал, мес.',t:'number',v:0}],
+    x=>{if(!x.name.trim())return 'Укажите название';v.items.push({id:uid(),cat:x.cat.trim()||'Прочее',name:x.name.trim(),km:+x.km||0,mo:+x.mo||0,lastKm:null,lastDate:null,note:''});save();render()});
+  if(t.closest('#editV'))dialog('Изменить транспорт',[
+    {n:'name',l:'Название',w:1,v:v.name},{n:'buyDate',l:'Дата покупки',t:'date',v:v.buyDate},
+    {n:'buyKm',l:'Пробег при покупке, км',t:'number',v:v.buyKm},{n:'cc',l:'Валюта',v:v.cc||'¥'}],
+    x=>{if(!x.name.trim()||!x.buyDate)return 'Заполните название и дату покупки';v.name=x.name.trim();v.buyDate=x.buyDate;v.buyKm=+x.buyKm||0;v.cc=x.cc.trim()||'¥';save();render()});
+  if(t.closest('#delV')&&confirm(`Удалить «${v.name}» со всеми отметками?`)){
+    S.v=S.v.filter(x=>x!==v);S.cur=S.v[0]?.id||null;view='home';save();render();
+  }
+});
+let RL='ru',RALL=false;
+document.addEventListener('change',e=>{if(e.target.id==='rAll'){RALL=e.target.checked;renderReport()}});
+function renderReport(){
+  const v=V();if(!v)return;
+  const L=RL,t=RT[L],loc=L==='ja'?'ja-JP':'ru-RU';
+  const nf=n=>Number(n).toLocaleString(loc),df=d=>d?new Date(d).toLocaleDateString(loc,{timeZone:'UTC'}):'—';
+  const mon=n=>n==null?'—':nf(n)+' '+esc(v.cc||'¥'),tr=s=>L==='ja'?(JA[s]||s):s;
+  const iv=it=>[it.km?nf(it.km)+' '+t.km:'',it.mo?it.mo+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond;
+  const mm=Math.max(0,Math.floor((Date.now()-Date.parse(v.buyDate))/2629800000)),y=Math.floor(mm/12),r=mm%12;
+  const own=L==='ja'?`${y?y+t.y:''}${r||!y?r+t.m:''}`:[y?y+' '+t.y:'',r||!y?r+' '+t.m:''].filter(Boolean).join(' ');
+  const ds=k=>{const d=v.docs[k];if(!d.end)return t.notSet;const n=Math.round((Date.parse(d.end)-Date.parse(today()))/864e5);return df(d.end)+' ('+(n<0?t.over(-n):t.left(n))+')'+(d.note?', '+lk(d.note):'')};
+  const groups={},hist=[];let total=0;
+  v.items.forEach(it=>{const h=H(it),c=h.reduce((a,e)=>a+(e.cost||0),0);total+=c;h.forEach(e=>hist.push({...e,cat:it.cat,name:it.name}));(groups[it.cat]=groups[it.cat]||[]).push({it,h,c,s:itemStatus(it,v.odo)})});
+  hist.sort((a,b)=>(a.d||'').localeCompare(b.d||'')||(a.km||0)-(b.km||0));
+  const catRows=Object.keys(groups).map(c=>[c,groups[c].reduce((a,x)=>a+x.c,0)]).filter(x=>x[1]>0);
+  const stTbl=Object.keys(groups).map(cat=>{
+    const rows=groups[cat].filter(x=>RALL||x.h.length);
+    if(!rows.length)return'';
+    return `<h3>${esc(tr(cat))}</h3><table><tr><th>${t.item}</th><th>${t.iv}</th><th>${t.last}</th><th>${t.status}</th><th>${t.cost}</th></tr>`+rows.map(({it,h,c,s})=>{
+      const e=h[h.length-1];
+      const kl=s.left==null?'':(s.left<0?(L==='ja'?` (${nf(-s.left)}${t.km}超過)`:` (на ${nf(-s.left)} ${t.km} сверх)`):(L==='ja'?` (残り${nf(s.left)}${t.km})`:` (ещё ${nf(s.left)} ${t.km})`));
+      return `<tr><td>${esc(tr(it.name))}</td><td>${iv(it)}</td><td>${e?df(e.d)+(e.km!=null?', '+nf(e.km)+' '+t.km:''):'—'}${h.length>1?` (${t.cnt}: ${h.length})`:''}</td><td class="s-${s.k}">${t.st[s.k]}${kl}</td><td class="num">${c?mon(c):'—'}</td></tr>`}).join('')+'</table>'}).join('');
+  const hTbl=hist.length?`<table><tr><th>${t.date}</th><th>${t.mil}</th><th>${t.item}</th><th>${t.cost}</th><th>${t.cmt}</th></tr>`+hist.map(e=>`<tr><td>${df(e.d)}</td><td class="num">${e.km!=null?nf(e.km)+' '+t.km:'—'}</td><td>${esc(tr(e.name))}<div style="color:#555;font-size:11px">${esc(tr(e.cat))}</div></td><td class="num">${mon(e.cost)}</td><td>${e.note?lk(e.note):''}</td></tr>`).join('')+`<tr><th colspan="3">${t.total}</th><th class="num">${mon(total)}</th><th></th></tr></table>`:`<p>${t.none}</p>`;
+  $('rep').lang=L;
+  $('rep').innerHTML=`<div class="rtool"><button data-rl="ru" class="${L==='ru'?'p':''}">Русский</button><button data-rl="ja" class="${L==='ja'?'p':''}">日本語</button>
+  <label><input type="checkbox" id="rAll" ${RALL?'checked':''}> Показать позиции без замен</label><span class="sp"></span><button class="p" id="rPrint">Печать</button><button id="rClose">Закрыть</button></div>
+  <h1>${t.title}</h1><div>${esc(v.name)}. ${t.made}: ${df(today())}</div>
+  <h2>${t.veh}</h2><table class="kv">
+  <tr><td>${t.type}</td><td>${t.types[v.type]||''}</td></tr><tr><td>${t.buy}</td><td>${df(v.buyDate)}</td></tr>
+  <tr><td>${t.buyKm}</td><td>${nf(v.buyKm)} ${t.km}</td></tr><tr><td>${t.odo}</td><td>${nf(v.odo)} ${t.km}</td></tr>
+  <tr><td>${t.drv}</td><td>${nf(Math.max(0,v.odo-v.buyKm))} ${t.km}</td></tr><tr><td>${t.own}</td><td>${own}</td></tr></table>
+  <h2>${t.docs}</h2><table class="kv">${DOCS.map(([k])=>`<tr><td>${t.dn[k]}</td><td>${ds(k)}</td></tr>`).join('')}</table>
+  <h2>${t.costs}</h2><p><b>${t.total}: ${mon(total)}</b></p>${catRows.length?`<table><tr><th>${t.byCat}</th><th>${t.cost}</th></tr>${catRows.map(c=>`<tr><td>${esc(tr(c[0]))}</td><td class="num">${mon(c[1])}</td></tr>`).join('')}</table>`:''}
+  <h2>${t.state}</h2>${stTbl||`<p>${t.none}</p>`}
+  <h2>${t.hist}</h2>${hTbl}`;
+}
+
+$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.v)||!d.v.length)throw 0;S=d;S.v.forEach(ensure);save();view='home';render()}catch(x){alert('Не удалось прочитать файл')}};
+  r.readAsText(f);e.target.value='';
+};
+
+(async()=>{
+  for(let i=0;i<30;i++){
+    let ok=false;
+    try{
+      const r=await fetch('api/state');if(!r.ok)throw new Error(r.status);
+      const x=await r.json();if(x&&Array.isArray(x.v))S=x;
+      S.v.forEach(ensure);loaded=true;ok=true;
+    }catch(e){}
+    if(ok){setSync('Подключено к MySQL');return render()}
+    $('main').innerHTML='<div class="empty">Подключаюсь к базе данных… (попытка '+(i+1)+')</div>';
+    await new Promise(r=>setTimeout(r,2000));
+  }
+  $('main').innerHTML='<div class="empty">Не удалось подключиться к базе данных.<br><br><button class="p" onclick="location.reload()">Повторить</button></div>';
+})();
+</script>
+</body>
+</html>

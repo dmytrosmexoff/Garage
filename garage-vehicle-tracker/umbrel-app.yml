@@ -1,0 +1,24 @@
+manifestVersion: 1
+id: garage-vehicle-tracker
+category: automation
+name: Garage Journal
+version: "1.0.0"
+tagline: Учёт обслуживания автомобиля, мотоцикла и мопеда
+description: >-
+  Журнал обслуживания транспорта с хранением данных в MySQL.
+  Список расходников по категориям, история замен со стоимостью и комментариями
+  (место замены, ссылка на Google Карты), график пробега по дням,
+  сроки страховки и техосмотра, отчёт для печати на русском и японском языках.
+developer: Garage
+website: https://example.com
+dependencies: []
+repo: https://github.com/YOUR_NAME/umbrel-garage
+support: https://github.com/YOUR_NAME/umbrel-garage/issues
+port: 3000
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+releaseNotes: ""
+submitter: YOUR_NAME
+submission: https://github.com/YOUR_NAME/umbrel-garage
