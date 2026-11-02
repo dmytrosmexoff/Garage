@@ -81,7 +81,7 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 .toast.show{opacity:1}
 .sync{position:fixed;left:10px;bottom:8px;font-size:11px;color:var(--mute);z-index:5}.sync.bad{color:var(--bad)}body.rep .sync{display:none}.toast.bad{background:var(--bad);color:#fff}
 @media (max-width:620px){.tiles{grid-template-columns:1fr}.hero h1{font-size:34px}.lg{grid-template-columns:1fr 1fr auto}.lg span:nth-child(3){display:none}.setrow{flex-direction:column;align-items:stretch}}
-#rep{display:none;background:#fff;color:#111;color-scheme:light;font:13px/1.45 "Segoe UI","Yu Gothic","Hiragino Sans",Meiryo,system-ui,sans-serif;padding:16px;max-width:900px;margin:0 auto}
+#rep{display:none;background:#fff;color:#111;color-scheme:light;font:600 13px/1.45 "Lucida Grande","Lucida Sans Unicode","Helvetica Neue",Helvetica,Arial,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;padding:16px;max-width:900px;margin:0 auto}
 body.rep{background:#fff}body.rep .wrap{display:none}body.rep #rep{display:block}
 .rtool{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px;margin-bottom:14px;background:#e8ecef;border-radius:8px}
 .rtool button{background:#fff;color:#111;border-color:#999}.rtool button.p{background:#1f5f7a;border-color:#1f5f7a;color:#fff}
@@ -92,6 +92,35 @@ body.rep{background:#fff}body.rep .wrap{display:none}body.rep #rep{display:block
 #rep th{background:#eee}#rep .num{text-align:right;white-space:nowrap}#rep a{color:#0b4f8a}#rep tr{break-inside:avoid}
 #rep .kv td:first-child{width:38%;font-weight:600}
 #rep .s-bad{font-weight:700;color:#a11}#rep .s-soon{font-weight:700;color:#8a5a00}
+.auth{max-width:460px;margin:30px auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.auth h1{font-size:24px;margin:0 0 6px}
+.form{display:grid;gap:10px;margin:12px 0}
+.chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink)}.chk input{width:auto}
+.msg{font-size:13px;margin:6px 0;min-height:18px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+.btnr{flex-wrap:wrap}
+#dBody{max-height:62vh;overflow:auto;padding-right:4px}
+.f h4{grid-column:1/-1;margin:10px 0 0;font-size:13px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.mbig{display:grid;grid-template-columns:1fr minmax(250px,320px);gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.mbig .left{display:flex;flex-direction:column;gap:8px;align-items:flex-start}.mbig label{max-width:260px}
+.dmini{display:flex;flex-direction:column;gap:6px}
+.dm{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-left:5px solid var(--none);border-radius:6px;padding:5px 10px;font-size:12.5px;line-height:1.3}
+.dm.ok{border-left-color:var(--ok)}
+.dm.soon{background:#b36b00;border-color:#b36b00;color:#fff}.dm.bad{background:#b3341f;border-color:#b3341f;color:#fff}
+.dm button{padding:3px 9px;font-size:12px}
+.dm.soon button,.dm.bad button{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.7)}
+.acts .gear{padding:4px 8px;font-size:16px;line-height:1}
+details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute);margin-bottom:8px}
+#rep h1,#rep h2,#rep h3,#rep th{font-weight:700}
+#rep .box{display:inline-block;width:17px;height:17px;border:2px solid #111;border-radius:3px}
+#rep td.cb{width:26px;text-align:center}#rep td.blank{min-width:150px;height:38px}
+#rep tr.opt td{color:#444}
+#rep .tag{display:inline-block;font-size:10.5px;border:1px solid #666;border-radius:9px;padding:0 6px;margin-left:6px;font-weight:700}
+#rep .tag.must{border-color:#a11;color:#a11}
+#rep .det{font-size:11.5px;color:#333}#rep .sub{font-size:11px;color:#444}
+#rep .cnote{border:1px solid #999;padding:6px 8px;min-height:38px;margin:6px 0;white-space:pre-wrap}
+.rtool .rnote{flex:1 1 240px;background:#fff;color:#111;border:1px solid #999;border-radius:6px;padding:6px 8px;width:auto}
+@media (max-width:620px){.mbig{grid-template-columns:1fr}}
 @media print{.sync,.toast{display:none}.rtool{display:none}#rep{padding:0;max-width:none}@page{margin:12mm}}
 @media (max-width:620px){.row{grid-template-columns:1fr}.acts{justify-content:flex-end}.docs{grid-template-columns:1fr}}
 </style>
@@ -117,14 +146,14 @@ const TYPES=[['moto','Мотоцикл'],['car','Автомобиль'],['moped'
 // Шаблоны: "название|интервал км|интервал мес."
 const TPL={
 moto:{"Двигатель и смазка":"Моторное масло|5000|12;Масляный фильтр|5000|12;Прокладка сливной пробки|5000|12;Воздушный фильтр|10000|24;Свечи зажигания|10000|24;Проверка клапанных зазоров|12000|0;Прокладки клапанных крышек|0|0",
-"Топливная система":"Топливный фильтр|15000|24;Топливные шланги|0|48;Синхронизация карбюраторов|12000|0;Ремкомплект карбюратора|0|0;Вакуумные шланги и топливный кран|0|0",
+"Топливная система (инжектор)":"Топливный фильтр / сетка бензонасоса|15000|48;Топливные шланги|0|48;Чистка дроссельных заслонок и синхронизация|12000|0;Форсунки: проверка и чистка|0|0",
 "Охлаждение":"Антифриз|0|24;Патрубки радиатора|0|48;Крышка радиатора|0|0;Термостат|0|0",
 "Тормоза":"Передние колодки|0|0;Задние колодки / накладки|0|0;Тормозная жидкость DOT 4|0|24;Тормозные шланги|0|48;Передний тормозной диск|0|0;Задний тормозной диск|0|0;Ремкомплекты суппортов и цилиндров|0|0;Пыльники и пальцы суппорта|0|0;Болты-банджо и медные шайбы|0|0",
-"Трансмиссия и привод":"Масло главной передачи / редуктора|12000|24;Цепь и звёзды (комплект)|0|0;Смазка карданных шарниров|12000|0;Сальники заднего редуктора|0|0",
-"Сцепление и тросики":"Трос сцепления|0|0;Трос газа|0|0;Трос обогатителя|0|0;Трос спидометра|0|0;Трос заднего тормоза|0|0;Диски и пружины сцепления|0|0;Смазка тросов|5000|12",
+"Трансмиссия (кардан)":"Масло главной передачи / редуктора|12000|24;Смазка карданных шарниров|12000|0;Сальники заднего редуктора|0|0",
+"Сцепление и тросики":"Трос сцепления|0|0;Трос газа|0|0;Диски и пружины сцепления|0|0;Смазка тросов|5000|12",
 "Подвеска":"Масло в вилке|25000|24;Сальники и пыльники вилки|0|0;Втулки вилки|0|0;Задние амортизаторы|0|0;Подшипники маятника|0|0;Подшипники рулевой колонки|0|24",
 "Колёса и шины":"Передняя шина|0|0;Задняя шина|0|0;Камеры / вентили|0|0;Подшипники колёс|0|0;Сальники колёс|0|0;Проверка натяжения спиц|5000|6",
-"Электрика":"Аккумулятор|0|48;Предохранители|0|0;Лампы (фара / стоп / поворотники)|0|0;Реле поворотов|0|0;Щётки стартера|0|0;Регулятор напряжения|0|0;Провода и колпачки свечей|0|0",
+"Электрика":"Аккумулятор|0|48;Предохранители|0|0;Лампы (фара / стоп / поворотники)|0|0;Реле поворотов|0|0;Щётки стартера|0|0;Регулятор напряжения|0|0;Провода и колпачки свечей|0|0;Диагностика ЭБУ (коды ошибок)|0|12",
 "Выпуск и впуск":"Прокладки выпускных фланцев|0|0;Уплотнения глушителя|0|0;Патрубки впускных коллекторов|0|0",
 "Прочее":"Грипсы|0|0;Рычаги и подножки|0|0;Смазка и фиксатор резьбы|0|0"},
 car:{"Двигатель и смазка":"Моторное масло|10000|12;Масляный фильтр|10000|12;Воздушный фильтр|20000|24;Салонный фильтр|15000|12;Свечи зажигания|30000|48;Ремень или цепь ГРМ|90000|60;Ремень навесного оборудования|60000|48",
@@ -152,11 +181,21 @@ const JA={"Двигатель и смазка":"エンジン・潤滑","Топл
 "Масло в вилке":"フォークオイル","Сальники и пыльники вилки":"フォークシール・ダストシール","Втулки вилки":"フォークブッシュ","Задние амортизаторы":"リアサスペンション","Подшипники маятника":"スイングアームベアリング","Подшипники рулевой колонки":"ステムベアリング","Передняя шина":"フロントタイヤ","Задняя шина":"リアタイヤ","Камеры / вентили":"チューブ・エアバルブ","Подшипники колёс":"ホイールベアリング","Сальники колёс":"ホイールシール","Проверка натяжения спиц":"スポークの張り点検",
 "Аккумулятор":"バッテリー","Предохранители":"ヒューズ","Лампы (фара / стоп / поворотники)":"電球（ヘッド・テール・ウインカー）","Реле поворотов":"ウインカーリレー","Щётки стартера":"スターターブラシ","Регулятор напряжения":"レギュレーター","Провода и колпачки свечей":"プラグコード・プラグキャップ","Прокладки выпускных фланцев":"エキゾーストガスケット","Уплотнения глушителя":"マフラーのシール","Патрубки впускных коллекторов":"インテークマニホールドのゴム","Грипсы":"グリップ","Рычаги и подножки":"レバー・ステップ","Смазка и фиксатор резьбы":"グリス・ネジロック剤",
 "Салонный фильтр":"エアコンフィルター","Ремень или цепь ГРМ":"タイミングベルト／チェーン","Ремень навесного оборудования":"補機ベルト","Задние колодки":"リアブレーキパッド","Передние диски":"フロントディスク","Задние диски":"リアディスク","Тормозная жидкость":"ブレーキフルード","Масло КПП / АКПП":"ミッション／ATFオイル","Пыльники ШРУС":"ドライブシャフトブーツ","Сцепление":"クラッチ","Амортизаторы":"ショックアブソーバー","Сайлентблоки рычагов":"アームのブッシュ","Шаровые опоры":"ボールジョイント","Рулевые наконечники и тяги":"タイロッドエンド","Стойки стабилизатора":"スタビライザーリンク","Ступичные подшипники":"ハブベアリング","Летние шины":"夏タイヤ","Зимние шины":"冬タイヤ（スタッドレス）","Сезонная смена шин":"タイヤ交換（季節）","Балансировка и развал-схождение":"バランス調整・アライメント","Лампы":"電球","Щётки стеклоочистителя":"ワイパーブレード","Жидкость омывателя":"ウォッシャー液",
-"Масляный фильтр / сетка":"オイルフィルター／ストレーナー","Свеча зажигания":"スパークプラグ","Ремень вариатора":"Vベルト","Ролики вариатора":"ウエイトローラー","Масло в редукторе":"ギヤオイル","Сцепление и колокол":"クラッチ・ケース","Трос тормоза":"ブレーキケーブル","Сальники вилки":"フォークシール","Задний амортизатор":"リアショック","Камеры":"チューブ"};
+"Масляный фильтр / сетка":"オイルフィルター／ストレーナー","Свеча зажигания":"スパークプラグ","Ремень вариатора":"Vベルト","Ролики вариатора":"ウエイトローラー","Масло в редукторе":"ギヤオイル","Сцепление и колокол":"クラッチ・ケース","Трос тормоза":"ブレーキケーブル","Сальники вилки":"フォークシール","Задний амортизатор":"リアショック","Камеры":"チューブ","Топливная система (инжектор)":"燃料系（インジェクション）","Трансмиссия (кардан)":"駆動系（シャフトドライブ）","Топливный фильтр / сетка бензонасоса":"燃料フィルター／ポンプストレーナー","Чистка дроссельных заслонок и синхронизация":"スロットルボディ清掃・同調","Форсунки: проверка и чистка":"インジェクター点検・清掃","Диагностика ЭБУ (коды ошибок)":"ECU診断（エラーコード）"};
+// Дополнительные поля замены: [ru, ja, подсказка]
+const EX={type:['Тип / вязкость','タイプ・粘度','напр. 10W-40'],vol:['Объём, л','量（L）','напр. 3.2'],brand:['Марка / артикул','メーカー・品番',''],len:['Длина, мм','長さ（mm）',''],level:['Уровень масла, мм','油面（mm）',''],conc:['Концентрация','濃度','напр. 50%'],size:['Размер','サイズ','напр. 140/80-15'],dot:['Дата выпуска (DOT)','製造年週（DOT）','напр. 2324'],cap:['Ёмкость, А·ч','容量（Ah）',''],plug:['Модель свечи','プラグ型番',''],gap:['Зазор, мм','ギャップ（mm）',''],lamp:['Тип лампы','ランプ規格','напр. H4 60/55W']};
+const EXD=[[/проверк/i,[]],[/смазк|сальник|пыльник|втулк/i,['brand']],[/вилк/i,['type','vol','level','brand']],[/масл/i,['type','vol','brand']],[/тормозная жидкость/i,['type','vol','brand']],[/антифриз/i,['type','vol','conc','brand']],[/шланг|патрубк/i,['len','brand']],[/трос/i,['len','brand']],[/шин|камер/i,['size','brand','dot']],[/аккумулятор/i,['cap','brand']],[/свеч/i,['plug','gap']],[/ламп/i,['lamp','brand']]];
+const exKeys=it=>(EXD.find(([r])=>r.test(it.name))||[0,['brand']])[1];
+const detStr=(x,L)=>x?Object.keys(x).filter(k=>EX[k]&&x[k]).map(k=>EX[k][L==='ja'?1:0]+': '+x[k]).join('; '):'';
+const CK={
+ru:{title:'Чек-лист для мастерской',veh:'Транспорт',mil:'Пробег',date:'Дата',panel:'на панели',wish:'Пожелания владельца',must:'Нужно сделать',opt:'Можно сделать заодно (не обязательно)',nod:'Нет данных о последней замене: уточните и при необходимости выполните',work:'Работа',why:'Причина',prev:'Прошлая замена',mech:'Заметка мастера, цена',tagM:'просрочено',tagO:'не обязательно',tagN:'нет данных',none:'Срочных работ нет.',nd:i=>'Не отмечено, когда меняли. Интервал: '+i,
+ km:(u,i,f)=>u>=i?`пробег: прошло ${f(u)} из ${f(i)} км (+${f(u-i)})`:`пробег: прошло ${f(u)} из ${f(i)} км, осталось ${f(i-u)}`,mo:(u,i)=>`время: прошло ${u} из ${i} мес.`},
+ja:{title:'整備依頼チェックリスト',veh:'車両',mil:'走行距離',date:'日付',panel:'メーター表示',wish:'オーナーからの要望',must:'実施が必要な項目',opt:'ついでに実施できる項目（任意）',nod:'前回交換の記録なし：確認のうえ必要なら実施',work:'作業内容',why:'理由',prev:'前回交換',mech:'整備士メモ・金額',tagM:'期限超過',tagO:'任意',tagN:'記録なし',none:'急ぎの作業はありません。',nd:i=>'前回交換の記録なし。目安：'+i,
+ km:(u,i,f)=>u>=i?`走行距離：${f(i)}km中${f(u)}km経過（+${f(u-i)}km）`:`走行距離：${f(i)}km中${f(u)}km経過、残り${f(i-u)}km`,mo:(u,i)=>`期間：${i}ヶ月中${u}ヶ月経過`}};
 const RT={
-ru:{title:'Отчёт по обслуживанию',made:'Сформирован',veh:'Транспорт',type:'Тип',buy:'Дата покупки',buyKm:'Пробег при покупке',odo:'Текущий пробег',drv:'Пройдено с покупки',own:'Срок владения',docs:'Страховка и техосмотр',notSet:'не задано',left:n=>`осталось ${n} дн.`,over:n=>`просрочено на ${n} дн.`,costs:'Расходы',total:'Итого',byCat:'По категориям',state:'Состояние расходников',item:'Позиция',iv:'Интервал',last:'Последняя замена',status:'Статус',cost:'Стоимость',hist:'История замен',date:'Дата',mil:'Пробег',cmt:'Комментарий',none:'Замен пока не отмечено',km:'км',mo:'мес.',cond:'по состоянию',y:'г.',m:'мес.',cnt:'Замен',
+ru:{panel:'Замена приборной панели',title:'Отчёт по обслуживанию',made:'Сформирован',veh:'Транспорт',type:'Тип',buy:'Дата покупки',buyKm:'Пробег при покупке',odo:'Текущий пробег',drv:'Пройдено с покупки',own:'Срок владения',docs:'Страховка и техосмотр',notSet:'не задано',left:n=>`осталось ${n} дн.`,over:n=>`просрочено на ${n} дн.`,costs:'Расходы',total:'Итого',byCat:'По категориям',state:'Состояние расходников',item:'Позиция',iv:'Интервал',last:'Последняя замена',status:'Статус',cost:'Стоимость',hist:'История замен',date:'Дата',mil:'Пробег',cmt:'Комментарий',none:'Замен пока не отмечено',km:'км',mo:'мес.',cond:'по состоянию',y:'г.',m:'мес.',cnt:'Замен',
  st:{ok:'в норме',soon:'скоро',bad:'просрочено',none:'нет данных'},dn:{ins:'Страховка',ti:'Техосмотр'},types:{moto:'Мотоцикл',car:'Автомобиль',moped:'Мопед / скутер',other:'Другое'}},
-ja:{title:'整備記録レポート',made:'作成日',veh:'車両',type:'種別',buy:'購入日',buyKm:'購入時の走行距離',odo:'現在の走行距離',drv:'購入後の走行距離',own:'所有期間',docs:'保険・点検',notSet:'未設定',left:n=>`残り${n}日`,over:n=>`${n}日超過`,costs:'費用',total:'合計',byCat:'カテゴリ別',state:'消耗品の状態',item:'項目',iv:'交換目安',last:'前回交換',status:'状態',cost:'費用',hist:'交換履歴',date:'日付',mil:'走行距離',cmt:'コメント',none:'交換記録はまだありません',km:'km',mo:'ヶ月',cond:'状態による',y:'年',m:'ヶ月',cnt:'回数',
+ja:{panel:'メーター交換',title:'整備記録レポート',made:'作成日',veh:'車両',type:'種別',buy:'購入日',buyKm:'購入時の走行距離',odo:'現在の走行距離',drv:'購入後の走行距離',own:'所有期間',docs:'保険・点検',notSet:'未設定',left:n=>`残り${n}日`,over:n=>`${n}日超過`,costs:'費用',total:'合計',byCat:'カテゴリ別',state:'消耗品の状態',item:'項目',iv:'交換目安',last:'前回交換',status:'状態',cost:'費用',hist:'交換履歴',date:'日付',mil:'走行距離',cmt:'コメント',none:'交換記録はまだありません',km:'km',mo:'ヶ月',cond:'状態による',y:'年',m:'ヶ月',cnt:'回数',
  st:{ok:'良好',soon:'もうすぐ',bad:'期限超過',none:'記録なし'},dn:{ins:'保険',ti:'車検・点検'},types:{moto:'オートバイ',car:'自動車',moped:'原付・スクーター',other:'その他'}}};
 
 const $=id=>document.getElementById(id);
@@ -177,6 +216,7 @@ async function push(){
   saveT=null;setSync('Сохранение…');
   try{
     const r=await fetch('api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)});
+    if(r.status===401){toast('Сессия истекла, войдите заново',1);setTimeout(()=>location.reload(),1500);return}
     if(!r.ok)throw new Error(r.status);
     setSync('Сохранено в MySQL');
   }catch(e){setSync('Ошибка сохранения в базу',1);toast('Не удалось сохранить в базу данных. Проверьте, что приложение запущено.',1)}
@@ -185,7 +225,7 @@ const save=()=>{if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(push,250)
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveT){clearTimeout(saveT);push()}});
 const V=()=>S.v.find(v=>v.id===S.cur)||S.v[0];
 const yday=()=>new Date(Date.parse(today())-864e5).toISOString().slice(0,10);
-const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥'};
+const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥';v.off=v.off||0;v.panels=v.panels||[]};
 S.v.forEach(ensure);
 
 function build(type){
@@ -202,14 +242,14 @@ function itemStatus(it,odo){
   const k=r>=1?'bad':r>=.8?'soon':'ok';
   let t=k==='bad'?'просрочено':k==='soon'?'скоро':'в норме';
   if(left!=null)t+=left<0?` (на ${fmt(-left)} км)`:` (ещё ${fmt(left)} км)`;
-  return{k,t,p:Math.min(r,1)*100,left};
+  return{k,t,p:Math.min(r,1)*100,left,r};
 }
 function docStatus(d){
   if(!d||!d.end)return{k:'none',t:'Дата не задана'};
   const n=Math.round((Date.parse(d.end)-Date.parse(today()))/864e5);
   if(n<0)return{k:'bad',t:`Просрочено на ${-n} дн.`};
-  if(n<=30)return{k:'soon',t:n===0?'Истекает сегодня':`Осталось ${n} дн.`};
-  return{k:'ok',t:`Осталось ${n} дн.`};
+  const k=d.end<=addMonths(today(),1)?'bad':d.end<=addMonths(today(),3)?'soon':'ok';
+  return{k,t:n===0?'Истекает сегодня':`Осталось ${n} дн.`};
 }
 function owned(v){
   const m=Math.max(0,Math.floor((Date.now()-Date.parse(v.buyDate))/2629800000)),y=Math.floor(m/12),r=m%12;
@@ -252,8 +292,8 @@ function alerts(v){
 }
 function renderHome(){
   const cnt=k=>S.v.filter(v=>v.type===k).length,list=S.v.filter(v=>!homeType||v.type===homeType);
-  $('main').innerHTML=`<div class="hero"><div><h1>Привет!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
-  ${homeSet?`<div class="panel"><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button><span class="meta">Резервная копия всего транспорта в файле JSON</span></div>`:''}
+  $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', '+esc(ME.login):''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
+  ${homeSet?`<div class="panel"><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${ME&&ME.admin?'<button id="dbBtn">Подключение к базе</button>':''}<button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия вашего транспорта в файле JSON</span></div>`:''}
   <div class="tiles">${[['car','Автомобиль'],['moto','Мотоцикл'],['moped','Мопед']].map(([k,n])=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${n}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>
   ${S.v.length?`<div class="gh"><h2>Мой транспорт</h2><span class="btnr">${homeType?'<button id="allV">Показать всё</button>':''}<button id="addV">Добавить транспорт</button></span></div>`
    +list.map(v=>`<button class="gv" data-open="${v.id}"><span><b>${esc(v.name)}</b><small>${(TYPES.find(t=>t[0]===v.type)||[0,''])[1]}, ${fmt(v.odo)} км</small></span><span>${alerts(v).map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></button>`).join(''):''}`;
@@ -261,14 +301,17 @@ function renderHome(){
 let homeSet=false;
 
 // ---- страница транспорта ----
-const mileBar=v=>`<div class="bar"><label>Показание одометра, км<input id="odo" type="number" min="0" inputmode="numeric" value="${v.odo}"></label>
-  <button class="p" id="saveOdo">Сохранить пробег</button><button id="dayBtn">Суточный пробег</button>${tab==='parts'?'<span class="sp"></span><button id="add">Добавить позицию</button>':''}</div>
-  <p class="hint2">Впишите показание счётчика: разница с предыдущей записью попадёт в график. Или нажмите «Суточный пробег» и введите километры за день.</p>`;
+const mileBar=v=>`<div class="mbig"><div class="left">
+  <label>Показание панели, км<input id="odo" type="number" min="0" inputmode="numeric" value="${v.odo-(v.off||0)}"></label>
+  <div class="btnr"><button class="p" id="saveOdo">Сохранить пробег</button><button id="dayBtn">Суточный пробег</button>${tab==='parts'?'<button id="add">Добавить позицию</button>':''}</div>
+  <p class="hint2">Впишите показание счётчика: разница с прошлой записью попадёт в график. Или нажмите «Суточный пробег» и введите километры за день.${v.off?` Общий пробег с учётом замены панели: ${fmt(v.odo)} км.`:''}</p></div>
+  <div class="dmini">${DOCS.map(([k,t])=>{const d=v.docs[k],s=docStatus(d);
+    return `<div class="dm ${s.k}" ${d.note?`title="${esc(d.note)}"`:''}><div><b>${t}</b><div>${s.t}${d.end?', до '+dfmt(d.end):''}</div></div><button data-doc="${k}">${d.end?'Продлить':'Задать'}</button></div>`}).join('')}</div></div>`;
 function renderVehicle(){
   const v=V(),tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
   $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1>${esc(v.name)}</h1></div>
   <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
-  <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.</p>`
+  <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
   +(tab==='parts'?partsHtml(v):tab==='mile'?mileHtml(v):setHtml(v));
   if(tab==='mile')initChart();
 }
@@ -284,16 +327,14 @@ function partsHtml(v){
       const iv=[it.km?fmt(it.km)+' км':'',it.mo?it.mo+' мес.':''].filter(Boolean).join(' / ')||'по состоянию';
       const h=H(it),e=h[h.length-1];
       const last=e?`Заменено: ${e.d?dfmt(e.d):'—'}${e.km!=null?', '+fmt(e.km)+' км':''}${e.cost!=null?', '+money(e.cost,v):''}${h.length>1?` (замен: ${h.length})`:''}`:'Замена не отмечена';
-      return `<div class="row ${s.k}"><div><div class="nm">${esc(it.name)}</div><div class="meta">Интервал: ${iv}. ${last}${e&&e.note?'. '+lk(e.note):''}${it.note?'. '+lk(it.note):''}</div></div>
+      return `<div class="row ${s.k}"><div><div class="nm">${esc(it.name)}</div><div class="meta">Интервал: ${iv}. ${last}${e&&detStr(e.x)?'. '+esc(detStr(e.x)):''}${e&&e.note?'. '+lk(e.note):''}${it.note?'. '+lk(it.note):''}</div></div>
       <div><div class="st">${s.t}</div><div class="prog"><i style="width:${s.p}%"></i></div></div>
-      <div class="acts"><button class="p" data-a="done" data-id="${it.id}">Заменил</button><button data-a="edit" data-id="${it.id}">Изменить</button></div></div>`}).join('');
+      <div class="acts"><button class="p" data-a="done" data-id="${it.id}">Заменил</button><button class="gear" data-a="gear" data-id="${it.id}" title="Настройки позиции" aria-label="Настройки позиции">⚙</button></div></div>`}).join('');
   }
   return `${mileBar(v)}
-  <div class="docs">${DOCS.map(([k,t])=>{const d=v.docs[k],s=docStatus(d);
-    return `<div class="doc ${s.k}"><div><b>${t}</b><span class="st">${s.t}</span>${d.end?`<div class="meta">до ${dfmt(d.end)}${d.note?'. '+lk(d.note):''}</div>`:''}</div><button data-doc="${k}">${d.end?'Продлить':'Задать срок'}</button></div>`}).join('')}</div>
-  <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}</div>
+  <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}<span class="sp"></span><button id="chkBtn">Чек-лист для мастерской</button></div>
   ${list||'<div class="empty">Здесь пока ничего нет</div>'}
-  <p class="hint">Данные хранятся в браузере (localStorage). Интервалы ориентировочные: сверьте их с сервис-мануалом и поправьте кнопкой «Изменить».</p>`;
+  <p class="hint">Данные хранятся в MySQL. Интервалы ориентировочные: сверьте их с сервис-мануалом. Кнопка ⚙ у позиции: поправить интервал, исправить или удалить замену, убрать позицию.</p>`;
 }
 function mileHtml(v){
   const L=v.log.map((e,i)=>({e,i})).reverse().slice(0,60);
@@ -305,9 +346,12 @@ function mileHtml(v){
   <p class="hint">Если пропустили дни, пробег запишется на день ввода: разница считается с предыдущей записи. При удалении записи её километры переходят на следующую.</p>`;
 }
 const setHtml=v=>`<div class="setrow"><div><b>Данные транспорта</b><span>Название, дата покупки, пробег при покупке, валюта</span></div><button id="editV">Изменить транспорт</button></div>
+  <div class="setrow"><div><b>Чек-лист для мастерской</b><span>Лист для печати: что просрочено и что скоро, с пометкой «не обязательно»</span></div><button id="chkBtn">Открыть чек-лист</button></div>
   <div class="setrow"><div><b>Отчёт для печати</b><span>На русском или японском: история замен, стоимость, комментарии</span></div><button id="repBtn">Открыть отчёт</button></div>
   <div class="setrow"><div><b>Резервная копия</b><span>Экспорт и импорт всех данных в файл JSON</span></div><span class="btnr"><button id="exp">Экспорт</button><button id="imp">Импорт</button></span></div>
-  <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>`;
+  <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>
+  <details class="adv"><summary>Дополнительно</summary>
+  <div class="setrow"><div><b>Замена приборной панели</b><span>Если новая панель показывает 0, пробег продолжит считаться правильно.</span>${(v.panels||[]).map(p=>`<span>${dfmt(p.d)}: старая ${fmt(p.old)} км, новая ${fmt(p.nw)} км</span>`).join('')}</div><button id="panelBtn">Панель заменена</button></div></details>`;
 
 // ---- график ----
 function chartDays(v){
@@ -356,11 +400,12 @@ let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
   $('dTitle').textContent=title;$('dLead').textContent=o.lead||'';$('dErr').textContent='';
   $('dBody').innerHTML=fields.map(f=>{
+    if(f.sep)return `<h4>${esc(f.sep)}</h4>`;
     const c=f.opts?`<select id="f_${f.n}">${f.opts.map(p=>`<option value="${p[0]}" ${p[0]===f.v?'selected':''}>${p[1]}</option>`).join('')}</select>`
-      :`<input id="f_${f.n}" type="${f.t||'text'}" value="${esc(f.v??'')}" ${f.t==='number'?'min="0" inputmode="numeric"':''}>`;
+      :`<input id="f_${f.n}" type="${f.t||'text'}" value="${esc(f.v??'')}" placeholder="${esc(f.p||'')}" ${f.t==='number'?'min="0" inputmode="numeric"':''}>`;
     return `<label class="${f.w?'w':''}">${f.l}${c}</label>`}).join('');
   lock=!!o.lock;$('dCancel').hidden=lock;
-  onOk=()=>{const v={};fields.forEach(f=>v[f.n]=$('f_'+f.n).value);const r=ok(v);if(typeof r==='string'){$('dErr').textContent=r;return}$('dlg').close()};
+  onOk=()=>{const v={};fields.forEach(f=>{if(!f.sep)v[f.n]=$('f_'+f.n).value});const r=ok(v);if(typeof r==='string'){$('dErr').textContent=r;return}$('dlg').close()};
   $('dlg').showModal();if(o.after)o.after();
 }
 $('dlg').addEventListener('cancel',e=>{if(lock)e.preventDefault()});
@@ -395,13 +440,78 @@ function docDialog(k){
    after(){const up=()=>{const e=addMonths($('f_start').value,$('f_term').value);if(e)$('f_end').value=e};$('f_start').oninput=up;$('f_term').oninput=up}});
 }
 
+function doneDialog(v,it){
+  const keys=exKeys(it);
+  dialog('Замена: '+it.name,[
+    {n:'date',l:'Дата',t:'date',v:today()},{n:'km',l:'Общий пробег, км',t:'number',v:v.odo},
+    {n:'cost',l:'Стоимость, '+(v.cc||'¥'),t:'number',w:1},
+    ...(keys.length?[{sep:'Детали замены'}]:[]),
+    ...keys.map(k=>({n:'x_'+k,l:EX[k][0],p:EX[k][2]})),
+    {sep:'Комментарий'},{n:'note',l:'Место замены, ссылка на Google Карты, примечания',w:1}],
+  x=>{
+    const km=x.km===''?v.odo:+x.km,det={};
+    keys.forEach(k=>{const q=(x['x_'+k]||'').trim();if(q)det[k]=q});
+    it.hist=H(it).slice();
+    it.hist.push({d:x.date||today(),km,cost:x.cost===''?null:+x.cost,note:x.note.trim(),x:det});
+    it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);
+    if(km>v.odo)setReading(v,today(),km);
+    save();render();
+  });
+}
+function gearDialog(v,it){
+  const h=H(it).slice(),keys=exKeys(it),ks=[],fields=[
+    {n:'name',l:'Название',w:1,v:it.name},{n:'km',l:'Интервал, км (0 — нет)',t:'number',v:it.km},{n:'mo',l:'Интервал, мес. (0 — нет)',t:'number',v:it.mo},
+    {n:'note',l:'Заметка',w:1,v:it.note}];
+  h.forEach((e,i)=>{
+    ks[i]=[...new Set([...keys,...Object.keys(e.x||{}).filter(k=>EX[k])])];
+    fields.push({sep:'Замена '+(i+1)},{n:'d'+i,l:'Дата',t:'date',v:e.d||''},{n:'k'+i,l:'Пробег, км',t:'number',v:e.km==null?'':e.km},
+      {n:'c'+i,l:'Стоимость, '+(v.cc||'¥'),t:'number',w:1,v:e.cost==null?'':e.cost},
+      ...ks[i].map(k=>({n:'x'+i+'_'+k,l:EX[k][0],p:EX[k][2],v:(e.x||{})[k]||''})),
+      {n:'n'+i,l:'Комментарий',w:1,v:e.note||''},
+      {n:'r'+i,l:'Эта запись',w:1,opts:[['','Оставить'],['1','Удалить запись']],v:''});
+  });
+  fields.push({sep:'Удаление'},{n:'del',l:'Позиция в списке',w:1,opts:[['','Оставить'],['1','Удалить позицию целиком']],v:''});
+  dialog('⚙ '+it.name,fields,x=>{
+    if(x.del){v.items=v.items.filter(q=>q!==it);save();render();return}
+    it.name=x.name.trim()||it.name;it.km=+x.km||0;it.mo=+x.mo||0;it.note=x.note;
+    it.hist=[];
+    h.forEach((e,i)=>{
+      if(x['r'+i])return;
+      const det={};ks[i].forEach(k=>{const q=(x['x'+i+'_'+k]||'').trim();if(q)det[k]=q});
+      it.hist.push({d:x['d'+i]||null,km:x['k'+i]===''?null:+x['k'+i],cost:x['c'+i]===''?null:+x['c'+i],note:x['n'+i].trim(),x:det});
+    });
+    it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);save();render();
+  },{lead:'Поправьте интервал, исправьте или удалите записи о заменах, либо уберите позицию из списка.'});
+}
+function panelDialog(v){
+  const shown=v.odo-(v.off||0);
+  dialog('Замена приборной панели',[
+    {n:'date',l:'Дата замены',t:'date',v:today()},
+    {n:'old',l:'Последнее показание старой панели, км',t:'number',v:shown},
+    {n:'nw',l:'Показание новой панели сейчас, км',t:'number',v:0},
+    {n:'note',l:'Заметка',w:1}],
+  x=>{
+    const d=x.date||today(),old=+x.old,nw=+x.nw||0,off=v.off||0;
+    if(x.old===''||old<0)return 'Укажите последнее показание старой панели';
+    const trueOld=old+off;
+    if(trueOld>v.odo){const r=setReading(v,d,trueOld);if(r)return r}
+    else if(trueOld<v.odo)return `Показание старой панели меньше записанного (${fmt(shown)} км). Проверьте число.`;
+    v.off=trueOld-nw;v.panels=v.panels||[];v.panels.push({d,old,nw,at:trueOld,note:x.note.trim()});
+    save();render();toast(`Готово. Общий пробег ${fmt(v.odo)} км продолжит считаться по новой панели`);
+  },{lead:'Если новая панель показывает 0 или другое число, приложение запомнит разницу: общий пробег и сроки замен расходников не собьются.'});
+}
+
 document.addEventListener('click',e=>{
   const t=e.target,v=V();
   if(t.closest('#rClose')){document.body.classList.remove('rep');return}
   if(t.closest('#rPrint'))return window.print();
   const rl=t.closest('[data-rl]');if(rl){RL=rl.dataset.rl;return renderReport()}
-  if(t.closest('#repBtn')){document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
+  if(t.closest('#repBtn')){RMODE='doc';document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
+  if(t.closest('#chkBtn')){RMODE='check';document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
   if(t.closest('#homeSet')){homeSet=!homeSet;return render()}
+  if(t.closest('#logout')){api('auth/logout','POST').catch(()=>{}).finally(()=>location.reload());return}
+  if(t.closest('#dbBtn'))return showSetup(null,true);
+  const rm=t.closest('[data-rm]');if(rm){RMODE=rm.dataset.rm;return renderReport()}
   if(t.closest('#exp')){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='vehicles-'+today()+'.json';a.click();return}
   if(t.closest('#imp'))return $('file').click();
   const ty=t.closest('[data-type]');
@@ -424,25 +534,18 @@ document.addEventListener('click',e=>{
   if(dl){const i=+dl.dataset.del;if(i>0&&confirm('Удалить запись о пробеге за '+dfmt(v.log[i].d)+'?')){v.log.splice(i,1);recalc(v);save();render()}return}
   if(t.closest('#saveOdo')){
     const x=$('odo').value;if(x==='')return toast('Введите показание одометра',1);
-    const r=setReading(v,today(),+x);if(r)return toast(r,1);
+    const r=setReading(v,today(),+x+(v.off||0));if(r)return toast(r,1);
     save();const e=v.log.find(q=>q.d===today());render();return toast(`Записано: +${fmt(e.trip)} км за сегодня, одометр ${fmt(v.odo)} км`);
   }
   if(t.closest('#dayBtn'))return dialog('Суточный пробег',[
     {n:'date',l:'Дата',t:'date',v:today()},{n:'km',l:'Проехал за день, км',t:'number',w:1}],
     x=>{const d=x.date||today(),r=addTrip(v,d,+x.km);if(r)return r;save();render();toast(`Записано: +${fmt(+x.km)} км за ${dfmt(d)}, одометр ${fmt(v.odo)} км`)},
     {lead:'Сколько километров проехали за день. Показание одометра увеличится на это число. Несколько поездок за день складываются.'});
+  if(t.closest('#panelBtn'))return panelDialog(v);
   const b=t.closest('[data-a]');
   if(b){
     const it=v.items.find(x=>x.id===b.dataset.id);
-    if(b.dataset.a==='done')dialog('Замена: '+it.name,[
-      {n:'date',l:'Дата',t:'date',v:today()},{n:'km',l:'Пробег, км',t:'number',v:v.odo},
-      {n:'cost',l:'Стоимость, '+(v.cc||'¥'),t:'number',w:1},
-      {n:'note',l:'Комментарий (место замены, ссылка на Google Карты)',w:1}],
-      x=>{const km=x.km===''?v.odo:+x.km;it.hist=H(it).slice();it.hist.push({d:x.date||today(),km,cost:x.cost===''?null:+x.cost,note:x.note.trim()});it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);if(km>v.odo)setReading(v,today(),km);save();render()});
-    else dialog('Изменить: '+it.name,[
-      {n:'name',l:'Название',w:1,v:it.name},{n:'km',l:'Интервал, км (0 — нет)',t:'number',v:it.km},{n:'mo',l:'Интервал, мес. (0 — нет)',t:'number',v:it.mo},
-      {n:'note',l:'Заметка',w:1,v:it.note},...(H(it).length?[{n:'undo',l:'Последняя запись о замене',w:1,opts:[['','Оставить'],['1','Удалить']],v:''}]:[])],
-      x=>{it.name=x.name||it.name;it.km=+x.km||0;it.mo=+x.mo||0;it.note=x.note;if(x.undo){it.hist=H(it).slice();it.hist.pop();relast(it)}save();render()});
+    if(b.dataset.a==='done')doneDialog(v,it);else gearDialog(v,it);
     return;
   }
   if(t.closest('#add'))dialog('Новая позиция',[
@@ -457,10 +560,59 @@ document.addEventListener('click',e=>{
     S.v=S.v.filter(x=>x!==v);S.cur=S.v[0]?.id||null;view='home';save();render();
   }
 });
-let RL='ru',RALL=false;
-document.addEventListener('change',e=>{if(e.target.id==='rAll'){RALL=e.target.checked;renderReport()}});
+let RL='ru',RALL=false,RMODE='doc',RSOON=true,RNONE=false,RNOTE='';
+document.addEventListener('change',e=>{const i=e.target.id;
+  if(i==='rAll'){RALL=e.target.checked;renderReport()}
+  if(i==='rSoon'){RSOON=e.target.checked;renderReport()}
+  if(i==='rNone'){RNONE=e.target.checked;renderReport()}});
+document.addEventListener('input',e=>{if(e.target.id==='rNote'){RNOTE=e.target.value;const n=$('cNote');if(n)n.textContent=RNOTE}});
+function toolbar(){
+  const c=RMODE==='check';
+  return `<div class="rtool"><button data-rm="doc" class="${c?'':'p'}">Отчёт</button><button data-rm="check" class="${c?'p':''}">Чек-лист для мастерской</button>
+  <button data-rl="ru" class="${RL==='ru'?'p':''}">Русский</button><button data-rl="ja" class="${RL==='ja'?'p':''}">日本語</button>
+  ${c?`<label><input type="checkbox" id="rSoon" ${RSOON?'checked':''}> Добавить «не обязательно» (осталось до 10%)</label><label><input type="checkbox" id="rNone" ${RNONE?'checked':''}> Позиции без данных о замене</label>
+  <input id="rNote" class="rnote" placeholder="Пожелания мастеру (печатаются в листе)" value="${esc(RNOTE)}">`
+  :`<label><input type="checkbox" id="rAll" ${RALL?'checked':''}> Показать позиции без замен</label>`}
+  <span class="sp"></span><button class="p" id="rPrint">Печать</button><button id="rClose">Закрыть</button></div>`;
+}
+function renderCheck(v){
+  const L=RL,t=RT[L],c=CK[L],loc=L==='ja'?'ja-JP':'ru-RU';
+  const nf=n=>Number(n).toLocaleString(loc),df=d=>d?new Date(d).toLocaleDateString(loc,{timeZone:'UTC'}):'—',tr=s=>L==='ja'?(JA[s]||s):s;
+  const iv=it=>[it.km?nf(it.km)+' '+t.km:'',it.mo?it.mo+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond;
+  const why=it=>{
+    const a=[];
+    if(it.km&&it.lastKm!=null)a.push(c.km(v.odo-it.lastKm,it.km,nf));
+    if(it.mo&&it.lastDate)a.push(c.mo(Math.round((Date.now()-Date.parse(it.lastDate))/2629800000*10)/10,it.mo));
+    return a.join('<br>')||'—';
+  };
+  const must=[],opt=[],nod=[];
+  v.items.forEach(it=>{
+    const s=itemStatus(it,v.odo);
+    if(s.k==='none'){if(RNONE&&(it.km||it.mo)&&!H(it).length)nod.push({it,s});return}
+    if(s.r>=1)must.push({it,s});else if(RSOON&&s.r>=.9)opt.push({it,s});
+  });
+  must.sort((a,b)=>b.s.r-a.s.r);opt.sort((a,b)=>b.s.r-a.s.r);
+  const row=({it},kind)=>{
+    const h=H(it),e=h[h.length-1];
+    const tag=kind==='must'?c.tagM:kind==='opt'?c.tagO:c.tagN;
+    return `<tr class="${kind==='opt'?'opt':''}"><td class="cb"><span class="box"></span></td><td>${esc(tr(it.name))}<span class="tag ${kind==='must'?'must':''}">${tag}</span><div class="sub">${esc(tr(it.cat))}</div></td>
+    <td>${kind==='nod'?c.nd(iv(it)):why(it)}</td><td>${e?df(e.d)+(e.km!=null?', '+nf(e.km)+' '+t.km:'')+(detStr(e.x,L)?`<div class="det">${esc(detStr(e.x,L))}</div>`:''):'—'}</td><td class="blank"></td></tr>`;
+  };
+  const table=(title,list,kind)=>list.length?`<h2>${title}</h2><table><tr><th></th><th>${c.work}</th><th>${c.why}</th><th>${c.prev}</th><th>${c.mech}</th></tr>${list.map(x=>row(x,kind)).join('')}</table>`:'';
+  $('rep').lang=L;
+  $('rep').innerHTML=`${toolbar()}
+  <h1>${c.title}</h1>
+  <table class="kv"><tr><td>${c.veh}</td><td>${esc(v.name)}, ${t.types[v.type]||''}</td></tr>
+  <tr><td>${c.mil}</td><td>${nf(v.odo)} ${t.km}${v.off?` (${c.panel}: ${nf(v.odo-v.off)} ${t.km})`:''}</td></tr>
+  <tr><td>${c.date}</td><td>${df(today())}</td></tr></table>
+  <h2>${c.wish}</h2><div class="cnote" id="cNote">${esc(RNOTE)}</div>
+  ${table(c.must,must,'must')}${table(c.opt,opt,'opt')}${table(c.nod,nod,'nod')}
+  ${must.length+opt.length+nod.length?'':`<p>${c.none}</p>`}`;
+}
+
 function renderReport(){
   const v=V();if(!v)return;
+  if(RMODE==='check')return renderCheck(v);
   const L=RL,t=RT[L],loc=L==='ja'?'ja-JP':'ru-RU';
   const nf=n=>Number(n).toLocaleString(loc),df=d=>d?new Date(d).toLocaleDateString(loc,{timeZone:'UTC'}):'—';
   const mon=n=>n==null?'—':nf(n)+' '+esc(v.cc||'¥'),tr=s=>L==='ja'?(JA[s]||s):s;
@@ -479,15 +631,14 @@ function renderReport(){
       const e=h[h.length-1];
       const kl=s.left==null?'':(s.left<0?(L==='ja'?` (${nf(-s.left)}${t.km}超過)`:` (на ${nf(-s.left)} ${t.km} сверх)`):(L==='ja'?` (残り${nf(s.left)}${t.km})`:` (ещё ${nf(s.left)} ${t.km})`));
       return `<tr><td>${esc(tr(it.name))}</td><td>${iv(it)}</td><td>${e?df(e.d)+(e.km!=null?', '+nf(e.km)+' '+t.km:''):'—'}${h.length>1?` (${t.cnt}: ${h.length})`:''}</td><td class="s-${s.k}">${t.st[s.k]}${kl}</td><td class="num">${c?mon(c):'—'}</td></tr>`}).join('')+'</table>'}).join('');
-  const hTbl=hist.length?`<table><tr><th>${t.date}</th><th>${t.mil}</th><th>${t.item}</th><th>${t.cost}</th><th>${t.cmt}</th></tr>`+hist.map(e=>`<tr><td>${df(e.d)}</td><td class="num">${e.km!=null?nf(e.km)+' '+t.km:'—'}</td><td>${esc(tr(e.name))}<div style="color:#555;font-size:11px">${esc(tr(e.cat))}</div></td><td class="num">${mon(e.cost)}</td><td>${e.note?lk(e.note):''}</td></tr>`).join('')+`<tr><th colspan="3">${t.total}</th><th class="num">${mon(total)}</th><th></th></tr></table>`:`<p>${t.none}</p>`;
+  const hTbl=hist.length?`<table><tr><th>${t.date}</th><th>${t.mil}</th><th>${t.item}</th><th>${t.cost}</th><th>${t.cmt}</th></tr>`+hist.map(e=>`<tr><td>${df(e.d)}</td><td class="num">${e.km!=null?nf(e.km)+' '+t.km:'—'}</td><td>${esc(tr(e.name))}<div style="color:#555;font-size:11px">${esc(tr(e.cat))}</div></td><td class="num">${mon(e.cost)}</td><td>${detStr(e.x,L)?`<div class="det">${esc(detStr(e.x,L))}</div>`:''}${e.note?lk(e.note):''}</td></tr>`).join('')+`<tr><th colspan="3">${t.total}</th><th class="num">${mon(total)}</th><th></th></tr></table>`:`<p>${t.none}</p>`;
   $('rep').lang=L;
-  $('rep').innerHTML=`<div class="rtool"><button data-rl="ru" class="${L==='ru'?'p':''}">Русский</button><button data-rl="ja" class="${L==='ja'?'p':''}">日本語</button>
-  <label><input type="checkbox" id="rAll" ${RALL?'checked':''}> Показать позиции без замен</label><span class="sp"></span><button class="p" id="rPrint">Печать</button><button id="rClose">Закрыть</button></div>
+  $('rep').innerHTML=`${toolbar()}
   <h1>${t.title}</h1><div>${esc(v.name)}. ${t.made}: ${df(today())}</div>
   <h2>${t.veh}</h2><table class="kv">
   <tr><td>${t.type}</td><td>${t.types[v.type]||''}</td></tr><tr><td>${t.buy}</td><td>${df(v.buyDate)}</td></tr>
   <tr><td>${t.buyKm}</td><td>${nf(v.buyKm)} ${t.km}</td></tr><tr><td>${t.odo}</td><td>${nf(v.odo)} ${t.km}</td></tr>
-  <tr><td>${t.drv}</td><td>${nf(Math.max(0,v.odo-v.buyKm))} ${t.km}</td></tr><tr><td>${t.own}</td><td>${own}</td></tr></table>
+  <tr><td>${t.drv}</td><td>${nf(Math.max(0,v.odo-v.buyKm))} ${t.km}</td></tr><tr><td>${t.own}</td><td>${own}</td></tr>${(v.panels||[]).length?`<tr><td>${t.panel}</td><td>${v.panels.map(p=>`${df(p.d)}: ${nf(p.old)} → ${nf(p.nw)} ${t.km}`).join('<br>')}</td></tr>`:''}</table>
   <h2>${t.docs}</h2><table class="kv">${DOCS.map(([k])=>`<tr><td>${t.dn[k]}</td><td>${ds(k)}</td></tr>`).join('')}</table>
   <h2>${t.costs}</h2><p><b>${t.total}: ${mon(total)}</b></p>${catRows.length?`<table><tr><th>${t.byCat}</th><th>${t.cost}</th></tr>${catRows.map(c=>`<tr><td>${esc(tr(c[0]))}</td><td class="num">${mon(c[1])}</td></tr>`).join('')}</table>`:''}
   <h2>${t.state}</h2>${stTbl||`<p>${t.none}</p>`}
@@ -501,20 +652,77 @@ $('file').onchange=e=>{
   r.readAsText(f);e.target.value='';
 };
 
-(async()=>{
-  for(let i=0;i<30;i++){
-    let ok=false;
-    try{
-      const r=await fetch('api/state');if(!r.ok)throw new Error(r.status);
-      const x=await r.json();if(x&&Array.isArray(x.v))S=x;
-      S.v.forEach(ensure);loaded=true;ok=true;
-    }catch(e){}
-    if(ok){setSync('Подключено к MySQL');return render()}
-    $('main').innerHTML='<div class="empty">Подключаюсь к базе данных… (попытка '+(i+1)+')</div>';
-    await new Promise(r=>setTimeout(r,2000));
+let ME=null,bootGen=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function api(p,method='GET',body){
+  const r=await fetch('api/'+p,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok)throw Object.assign(new Error(j.error||('Ошибка '+r.status)),{status:r.status});
+  return j;
+}
+async function loadState(){
+  const x=await api('state');S=x&&Array.isArray(x.v)?x:{cur:null,v:[]};
+  S.v.forEach(ensure);loaded=true;view='home';setSync('Подключено к MySQL');render();
+}
+async function boot(){
+  const g=++bootGen;let st=null;
+  for(let i=0;i<15&&!st;i++){try{st=await api('status')}catch(e){$('main').innerHTML='<div class="empty">Подключаюсь к приложению…</div>';await sleep(2000)}}
+  if(!st){$('main').innerHTML='<div class="empty">Не удалось связаться с сервером.<br><br><button class="p" onclick="location.reload()">Повторить</button></div>';return}
+  if(!st.ready){
+    if(st.configured&&st.connecting){
+      $('main').innerHTML=`<div class="auth card"><h1>Подключаюсь к базе…</h1><p class="meta">${esc(st.current.host)}:${st.current.port}, база «${esc(st.current.database)}». При первом запуске MySQL стартует до минуты.</p>${st.error?`<p class="msg bad">${esc(st.error)}</p>`:''}<div class="btnr"><button id="sChange">Изменить настройки базы</button></div></div>`;
+      $('sChange').onclick=()=>showSetup(st);
+      await sleep(2500);if(g===bootGen)return boot();return;
+    }
+    return showSetup(st);
   }
-  $('main').innerHTML='<div class="empty">Не удалось подключиться к базе данных.<br><br><button class="p" onclick="location.reload()">Повторить</button></div>';
-})();
+  if(!st.user)return showAuth(st);
+  ME=st.user;
+  try{await loadState()}catch(e){showAuth(st)}
+}
+async function showSetup(st,reconf){
+  bootGen++;
+  if(!st){try{st=await api('status')}catch(e){return toast(e.message,1)}}
+  const cur=st.current,df=st.defaults,builtin=cur?cur.builtin:true,val=cur||df;
+  $('main').innerHTML=`<div class="auth card"><h1>Подключение к базе данных</h1>
+  <p class="meta">Все данные хранятся в MySQL. Используйте встроенную базу Umbrel или укажите свой сервер.</p>
+  <label class="chk"><input type="checkbox" id="sB" ${builtin?'checked':''}> Встроенная база Umbrel (по умолчанию)</label>
+  <div class="form">
+   <label>Адрес сервера (host)<input id="sH" value="${esc(val.host)}"></label>
+   <div class="f"><label>Порт<input id="sP" type="number" value="${val.port}"></label><label>Имя базы<input id="sD" value="${esc(val.database)}"></label></div>
+   <label>Логин MySQL<input id="sU" value="${esc(val.user)}" autocomplete="off"></label>
+   <label>Пароль MySQL<input id="sW" type="password" autocomplete="new-password" placeholder="${cur&&!cur.builtin?'оставьте пустым, чтобы не менять':''}"></label>
+  </div>
+  <div class="msg" id="sM"></div>
+  <div class="btnr"><button id="sT">Проверить подключение</button><button id="sC">Создать пустую базу</button><button class="p" id="sS">Сохранить и продолжить</button>${reconf?'<button id="sX">Отмена</button>':''}</div></div>`;
+  const sync=()=>{const b=$('sB').checked;['sH','sP','sD','sU','sW'].forEach(i=>$(i).disabled=b);if(b){$('sH').value=df.host;$('sP').value=df.port;$('sD').value=df.database;$('sU').value=df.user;$('sW').value=''}};
+  $('sB').onchange=sync;sync();
+  const body=()=>({builtin:$('sB').checked,host:$('sH').value,port:$('sP').value,database:$('sD').value,user:$('sU').value,password:$('sW').value});
+  const msg=(m,k)=>{$('sM').textContent=m;$('sM').className='msg '+(k||'')};
+  const go=async p=>{msg('Выполняю…');try{return await api(p,'POST',body())}catch(e){msg(e.message,'bad');return null}};
+  $('sT').onclick=async()=>{const r=await go('setup/test');if(r)msg(r.dbExists?'Подключение успешно, база найдена.':'Подключение успешно, но базы с таким именем нет: нажмите «Создать пустую базу».','ok')};
+  $('sC').onclick=async()=>{const r=await go('setup/create-db');if(r)msg('Пустая база создана. Теперь нажмите «Сохранить и продолжить».','ok')};
+  $('sS').onclick=async()=>{const r=await go('setup/save');if(r){if(reconf)location.reload();else boot()}};
+  if(reconf)$('sX').onclick=()=>render();
+}
+function showAuth(st,mode){
+  const reg=mode==='reg'||!st.hasUsers;
+  $('main').innerHTML=`<div class="auth card"><h1>${reg?(st.hasUsers?'Регистрация':'Создайте первого пользователя'):'Вход'}</h1>
+  <p class="meta">${!st.hasUsers?'Этот пользователь станет администратором. У каждого пользователя свой транспорт и свои записи.':reg?'У каждого пользователя свой транспорт и свои записи.':'Войдите в свой аккаунт.'}</p>
+  <div class="form"><label>Логин<input id="aL" autocomplete="username"></label><label>Пароль<input id="aP" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>${reg?'<label>Повторите пароль<input id="aP2" type="password" autocomplete="new-password"></label>':''}</div>
+  <div class="msg bad" id="aM"></div>
+  <div class="btnr"><button class="p" id="aGo">${reg?'Создать аккаунт':'Войти'}</button>${st.hasUsers?`<button id="aSw">${reg?'У меня есть аккаунт':'Регистрация'}</button>`:''}</div></div>`;
+  const go=async()=>{
+    const l=$('aL').value.trim(),p=$('aP').value;
+    if(reg&&p!==$('aP2').value){$('aM').textContent='Пароли не совпадают';return}
+    try{const r=await api('auth/'+(reg?'register':'login'),'POST',{login:l,password:p});ME=r.user;await loadState()}catch(e){$('aM').textContent=e.message}
+  };
+  $('aGo').onclick=go;
+  ['aL','aP','aP2'].forEach(i=>{const el=$(i);if(el)el.onkeydown=ev=>{if(ev.key==='Enter')go()}});
+  if(st.hasUsers)$('aSw').onclick=()=>showAuth(st,reg?'login':'reg');
+  $('aL').focus();
+}
+boot();
 </script>
 </body>
 </html>

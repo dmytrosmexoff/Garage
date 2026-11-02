@@ -20,8 +20,10 @@ services:
       DB_USER: garage
       DB_PASSWORD: ${APP_SEED}
       DB_NAME: garage
+      CONFIG_PATH: /config/db.json
     volumes:
       - ${APP_DATA_DIR}/server:/app
+      - ${APP_DATA_DIR}/data/config:/config
 
   db:
     image: mysql:8.0
