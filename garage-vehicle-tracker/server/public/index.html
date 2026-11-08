@@ -366,7 +366,7 @@ function partsHtml(v){
   return `${mileBar(v)}
   <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}<span class="sp"></span><button id="chkBtn">Чек-лист для мастерской</button></div>
   ${list||'<div class="empty">Здесь пока ничего нет</div>'}
-  <p class="hint">Интервалы ориентировочные: сверьте их с сервис-мануалом. ✓ продлевает интервал после проверки, ⚙ открывает правку интервала, замен и фото.</p>`;
+  <p class="hint">Данные хранятся в MySQL. Интервалы ориентировочные: сверьте их с сервис-мануалом. ✓ продлевает интервал после проверки, ⚙ открывает правку интервала, замен и фото.</p>`;
 }
 function mileHtml(v){
   const L=v.log.map((e,i)=>({e,i})).reverse().slice(0,60);
@@ -804,7 +804,7 @@ async function loadState(){
   if(ME&&!ME.lang)api('auth/lang','POST',{lang:LANG}).catch(()=>{});
   const x=await api('state');S=x&&Array.isArray(x.v)?x:{cur:null,v:[]};
   const bad=S.v.some(v=>v.cc&&(/\d/.test(v.cc)||String(v.cc).trim().length>4));
-  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Подключено к MySQL');render();
+  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Ок');render();
   if(location.hash==='#day'&&V()){S.cur=V().id;view='veh';tab='parts';render();history.replaceState(null,'',location.pathname);dayDialog(V())}
 }
 async function boot(){
