@@ -2,7 +2,7 @@ manifestVersion: 1
 id: garage-vehicle-tracker
 category: automation
 name: Garage Journal
-version: "1.2.1"
+version: "1.2.3"
 tagline: Учёт обслуживания автомобиля, мотоцикла и мопеда
 description: >-
   Журнал обслуживания транспорта с хранением данных в MySQL.

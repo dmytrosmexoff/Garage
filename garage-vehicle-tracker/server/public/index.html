@@ -141,6 +141,20 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 #rep .rx{display:block;margin:4px auto 0;padding:0 5px;font-size:11px;line-height:16px}
 #rep .pg{width:100%;border-collapse:collapse;border:0}#rep .pg>tbody>tr>td{padding:0;border:0;vertical-align:top}
 #rep .pg thead,#rep .pg tfoot{display:none}
+.mine{background:linear-gradient(135deg,#1f5f7a,#143f52);color:#fff;border-radius:16px;padding:16px 16px 10px;margin-bottom:26px;box-shadow:0 6px 18px rgba(20,63,82,.35)}
+.mine .gh{margin-top:0}.mine h2{color:#fff;border:0;font-size:22px;padding:0;margin:0}
+.mine .btnr button,.mine .vc>button:last-child{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.55);border-radius:10px}
+.grp,.sg{font-size:12.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin:14px 0 8px}
+.grp{color:rgba(255,255,255,.8)}.sg{color:var(--mute)}
+.vc{display:flex;gap:8px;margin-bottom:8px}
+.vcm{flex:1;display:flex;align-items:center;gap:14px;text-align:left;background:var(--panel);color:var(--ink);border:0;border-left:7px solid var(--ok);border-radius:12px;padding:12px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.vc.soon .vcm{border-left-color:#d79a1e}.vc.bad .vcm{border-left-color:var(--bad)}
+.vcm svg{width:76px;height:auto;flex:none;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.vcm svg .w{fill:var(--panel)}.vcm svg .h{fill:var(--acc);stroke:none}
+.vcm .t{flex:1;min-width:0}.vcm b{display:block;font-size:19px}.vcm small{display:block;color:var(--mute);margin-bottom:2px}
+.vc>button:last-child{white-space:nowrap;padding:0 14px}
+.add h2{border:0;font-size:18px;margin:0 0 2px;padding:0}
+@media (max-width:620px){.vcm svg{width:56px}.vcm b{font-size:17px}}
 @media print{.sync,.toast,.rtool,.rx{display:none!important}#rep{padding:0;max-width:none}@page{size:A4;margin:0}
 #rep .pg thead{display:table-header-group}#rep .pg tfoot{display:table-footer-group}
 #rep .pg thead td,#rep .pg tfoot td{height:13mm;padding:0;border:0}#rep .pg>tbody>tr>td{padding:0 14mm}}
@@ -168,7 +182,8 @@ startI18n();
 const KEY='vehicle-tracker-v2';
 const TYPES=[['moto','Мотоцикл'],['car','Автомобиль'],['moped','Мопед / скутер'],['boat','Моторная лодка'],['sail','Парусная яхта'],['jet','Гидроцикл'],['other','Другое']];
 const WATER=new Set(['boat','sail','jet']);
-const UN=v=>WATER.has(v.type)?'ч':'км';
+const UN=v=>WATER.has(v.type)?'ч':v.unit==='mi'?'миль':'км';
+const defUnit=()=>{let u=null;try{u=localStorage.getItem('gt_unit')}catch(e){}return u||(/^en-(us|gb)/i.test(navigator.language||'')?'mi':'km')};
 // Шаблоны: "название|интервал км|интервал мес."
 const TPL={
 moto:{"Двигатель и смазка":"Моторное масло|5000|12;Масляный фильтр|5000|12;Прокладка сливной пробки|5000|12;Воздушный фильтр|10000|24;Свечи зажигания|10000|24;Проверка клапанных зазоров|12000|0;Прокладки клапанных крышек|0|0",
@@ -234,12 +249,12 @@ const save=()=>{if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(push,250)
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveT){clearTimeout(saveT);push()}});
 const V=()=>S.v.find(v=>v.id===S.cur)||S.v[0];
 const yday=()=>new Date(Date.parse(today())-864e5).toISOString().slice(0,10);
-const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥';if(/\d/.test(v.cc)||String(v.cc).trim().length>4)v.cc='¥';v.off=v.off||0;v.panels=v.panels||[];v.plans=v.plans||[]};
+const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:null}];if(!v.cc)v.cc='¥';if(/\d/.test(v.cc)||String(v.cc).trim().length>4)v.cc='¥';v.off=v.off||0;v.panels=v.panels||[];v.plans=v.plans||[];v.unit=v.unit||'km'};
 S.v.forEach(ensure);
 
-function build(type){
+function build(type,unit){
   const out=[];
-  for(const cat in TPL[type]||{})TPL[type][cat].split(';').forEach(s=>{const p=s.split('|');out.push({id:uid(),cat,name:p[0],km:+p[1],mo:+p[2],lastKm:null,lastDate:null,note:''})});
+  for(const cat in TPL[type]||{})TPL[type][cat].split(';').forEach(s=>{const p=s.split('|');out.push({id:uid(),cat,name:p[0],km:unit==='mi'&&!WATER.has(type)?Math.round(+p[1]*0.621371/100)*100:+p[1],mo:+p[2],lastKm:null,lastDate:null,note:''})});
   return out;
 }
 const ext=it=>(it.checks||[]).reduce((a,c)=>({km:a.km+(c.ak||0),mo:a.mo+(c.am||0)}),{km:0,mo:0});
@@ -322,13 +337,24 @@ jet:'<svg viewBox="0 0 130 66"><path d="M10 44q4 10 28 10h58q14 0 22-16l-28 2-10
 const TILES=[['car','Автомобиль'],['moto','Мотоцикл'],['moped','Мопед'],['boat','Моторная лодка'],['sail','Парусная яхта'],['jet','Гидроцикл']];
 const langBox=()=>`<div class="langbox"><select id="langSel" aria-label="Language">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></div>`;
 function renderHome(){
-  WATERCTX=false;
+  WATERCTX=false;MILECTX=false;
   const cnt=k=>S.v.filter(v=>v.type===k).length,list=S.v.filter(v=>!homeType||v.type===homeType);
+  const tn=Object.fromEntries(TILES),tl=v=>(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
+  const card=v=>{
+    const al=alerts(v),worst=al.some(a=>a[0]==='bad')?'bad':al.some(a=>a[0]==='soon')?'soon':'ok';
+    return `<div class="vc ${worst}"><button class="vcm" data-open="${v.id}">${ICONS[v.type]||''}<span class="t"><b class="u">${esc(v.name)}</b><small>${tl(v)}, ${fmt(v.odo)} ${UN(v)}</small><span>${al.map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></span></button><button data-quick="${v.id}">+ пробег</button></div>`;
+  };
+  const groups=[['Автотранспорт',['car','moto','moped']],['Водный транспорт',['boat','sail','jet']]];
+  const mine=S.v.length?`<section class="mine"><div class="gh"><h2>Мой транспорт</h2><span class="btnr">${homeType?'<button id="allV">Показать всё</button>':''}<button id="addV">Добавить транспорт</button></span></div>`
+    +groups.map(([title,types],gi)=>{
+      const l=list.filter(v=>gi===0?!WATER.has(v.type):WATER.has(v.type));
+      return l.length?`<div class="grp">${title}</div>`+l.map(card).join(''):'';
+    }).join('')+`</section>`:'';
+  const tiles=`<section class="add"><h2>${S.v.length?'Добавить транспорт':'Выберите тип транспорта'}</h2>`
+    +groups.map(([title,types])=>`<div class="sg">${title}</div><div class="tiles">${types.map(k=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${tn[k]}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>`).join('')+`</section>`;
   $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
   ${homeSet?`<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${ME&&ME.admin?'<button id="dbBtn">Подключение к базе</button>':''}<button id="instBtn">Установка на телефон</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия вашего транспорта в файле JSON</span></div>`:''}
-  <div class="tiles">${TILES.map(([k,n])=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${n}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>
-  ${S.v.length?`<div class="gh"><h2>Мой транспорт</h2><span class="btnr">${homeType?'<button id="allV">Показать всё</button>':''}<button id="addV">Добавить транспорт</button></span></div>`
-   +list.map(v=>`<div class="gvr"><button class="gvm" data-open="${v.id}"><span><b class="u">${esc(v.name)}</b><small>${(TYPES.find(t=>t[0]===v.type)||[0,''])[1]}, ${fmt(v.odo)} ${UN(v)}</small></span><span>${alerts(v).map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></button><button data-quick="${v.id}">+ пробег</button></div>`).join(''):''}`;
+  ${mine}${tiles}`;
 }
 let homeSet=false;
 
@@ -340,7 +366,7 @@ const mileBar=v=>`<div class="mbig"><div class="left">
   <div class="dmini">${DOCS.map(([k,t])=>{const d=v.docs[k],s=docStatus(d);
     return `<div class="dm ${s.k}" ${d.note?`title="${esc(d.note)}"`:''}><div><b>${t}</b><div>${s.t}${d.end?', до '+dfmt(d.end):''}</div></div><button data-doc="${k}">${d.end?'Продлить':'Задать'}</button></div>`}).join('')}</div></div>`;
 function renderVehicle(){
-  const v=V();WATERCTX=WATER.has(v.type);const tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
+  const v=V();WATERCTX=WATER.has(v.type);MILECTX=!WATERCTX&&v.unit==='mi';const tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
   $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1 class="u">${esc(v.name)}</h1></div>
   <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['plans','Планы'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
   <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}${v.price!=null?' за '+money(v.price,v):''}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
@@ -457,9 +483,9 @@ $('dCancel').onclick=()=>$('dlg').close();
 function vehicleDialog(type){
   dialog('Новый транспорт',[
     {n:'name',l:'Название',w:1,v:''},
-    {n:'type',l:'Тип',w:1,opts:TYPES,v:type||'moto'},
-    {n:'buyDate',l:'Дата покупки',t:'date'},{n:'buyKm',l:'Пробег при покупке (км / моточасы)',t:'number',v:0},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1},
-    {n:'odo',l:'Текущий пробег (км / моточасы)',t:'number'},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:'¥'},
+    {n:'type',l:'Тип',w:1,opts:TYPES,v:type||'moto'},{n:'unit',l:'Единицы расстояния',w:1,opts:[['km','Километры'],['mi','Мили']],v:defUnit()},
+    {n:'buyDate',l:'Дата покупки',t:'date'},{n:'buyKm',l:'Пробег при покупке (км / мили / моточасы)',t:'number',v:0},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1},
+    {n:'odo',l:'Текущий пробег (км / мили / моточасы)',t:'number'},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:'¥'},
     {n:'ins',l:'Страховка действует до',t:'date'},{n:'ti',l:'Техосмотр действует до',t:'date'}],
   v=>{
     if(!v.name.trim())return 'Укажите название';
@@ -467,7 +493,8 @@ function vehicleDialog(type){
     const buyKm=+v.buyKm||0,odo=v.odo===''?buyKm:+v.odo;
     if(odo<buyKm)return 'Текущий пробег не может быть меньше пробега при покупке';
     if(/\d/.test((v.cc||''))||String((v.cc||'')).trim().length>4)return 'В поле валюты нужен символ (¥, ₽, $), а не сумма';
-    const n={id:uid(),name:v.name.trim(),type:v.type,buyDate:v.buyDate,buyKm,price:v.price===''?null:+v.price,odo,log:[{d:yday(),odo,trip:null}],items:build(v.type),cc:(v.cc||'¥').trim(),docs:{ins:{end:v.ins,note:''},ti:{end:v.ti,note:''}}};
+    const n={id:uid(),name:v.name.trim(),type:v.type,buyDate:v.buyDate,buyKm,price:v.price===''?null:+v.price,odo,log:[{d:yday(),odo,trip:null}],unit:WATER.has(v.type)?'km':v.unit,items:build(v.type,v.unit),cc:(v.cc||'¥').trim(),docs:{ins:{end:v.ins,note:''},ti:{end:v.ti,note:''}}};
+    try{localStorage.setItem('gt_unit',v.unit)}catch(e){}
     S.v.push(n);S.cur=n.id;view='veh';tab='parts';filter='all';save();render();
   },{lead:'Дата покупки и пробег нужны для расчёта пробега и срока владения. Страховку и техосмотр можно заполнить позже.'});
 }
@@ -572,6 +599,14 @@ function gearDialog(v,it){
     it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);save();render();
     adds.forEach(([ne,f])=>attachPhotos(ne,f));
   },{lead:'Поправьте интервал, исправьте или удалите записи о заменах и проверках, добавьте фото либо уберите позицию из списка.'});
+}
+function convertUnit(v,to){
+  const f=to==='mi'?0.621371:1.609344,c=n=>n==null?n:Math.round(n*f),r100=n=>n?Math.max(100,Math.round(n*f/100)*100):0;
+  v.buyKm=c(v.buyKm);v.off=c(v.off||0);
+  (v.log||[]).forEach(e=>e.odo=c(e.odo));if(v.log&&v.log.length)recalc(v);else v.odo=c(v.odo);
+  (v.panels||[]).forEach(p=>{p.old=c(p.old);p.nw=c(p.nw);p.at=c(p.at)});
+  v.items.forEach(it=>{it.km=r100(it.km);if(it.lastKm!=null)it.lastKm=c(it.lastKm);(it.hist||[]).forEach(h=>{if(h.km!=null)h.km=c(h.km)});(it.checks||[]).forEach(k=>{k.km=c(k.km);k.ak=r100(k.ak)})});
+  v.unit=to;
 }
 function panelDialog(v){
   const shown=v.odo-(v.off||0);
@@ -683,8 +718,8 @@ document.addEventListener('click',e=>{
     x=>{if(!x.name.trim())return 'Укажите название';v.items.push({id:uid(),cat:x.cat.trim()||'Прочее',name:x.name.trim(),km:+x.km||0,mo:+x.mo||0,lastKm:null,lastDate:null,note:''});save();render()});
   if(t.closest('#editV'))dialog('Изменить транспорт',[
     {n:'name',l:'Название',w:1,v:v.name},{n:'buyDate',l:'Дата покупки',t:'date',v:v.buyDate},
-    {n:'buyKm',l:'Пробег при покупке, км',t:'number',v:v.buyKm},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1,v:v.price==null?'':v.price},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:v.cc||'¥'}],
-    x=>{if(!x.name.trim()||!x.buyDate)return 'Заполните название и дату покупки';if(/\d/.test(x.cc)||String(x.cc).trim().length>4)return 'В поле валюты нужен символ (¥, ₽, $), а не сумма';v.name=x.name.trim();v.buyDate=x.buyDate;v.buyKm=+x.buyKm||0;v.price=x.price===''?null:+x.price;v.cc=x.cc.trim()||'¥';save();render()});
+    {n:'buyKm',l:'Пробег при покупке, км',t:'number',v:v.buyKm},{n:'price',l:'Цена покупки (число, без символа валюты)',t:'number',w:1,v:v.price==null?'':v.price},{n:'cc',l:'Символ валюты (¥, ₽, $), не сумма',v:v.cc||'¥'},...(WATER.has(v.type)?[]:[{n:'unit',l:'Единицы расстояния',w:1,opts:[['km','Километры'],['mi','Мили']],v:v.unit||'km'}])],
+    x=>{if(!x.name.trim()||!x.buyDate)return 'Заполните название и дату покупки';if(/\d/.test(x.cc)||String(x.cc).trim().length>4)return 'В поле валюты нужен символ (¥, ₽, $), а не сумма';v.name=x.name.trim();v.buyDate=x.buyDate;v.buyKm=+x.buyKm||0;v.price=x.price===''?null:+x.price;v.cc=x.cc.trim()||'¥';if(x.unit&&x.unit!==(v.unit||'km'))convertUnit(v,x.unit);save();render()},{lead:'При смене единиц все числа пересчитываются автоматически: пробег, интервалы, записи замен.'});
   if(t.closest('#delV')&&confirm(`Удалить «${v.name}» со всеми отметками?`)){
     S.v=S.v.filter(x=>x!==v);S.cur=S.v[0]?.id||null;view='home';save();render();
   }
@@ -692,7 +727,7 @@ document.addEventListener('click',e=>{
 let RL='ru',RALL=false,RMODE='doc',RSOON=true,RNONE=false,RNOTE='',RX=new Set(),RADD=new Set(),RCUS=[];
 const LOC={ru:'ru-RU',en:'en-GB',uk:'uk-UA',ja:'ja-JP'};
 function rctx(v,L){
-  const t={...RT[L]};if(WATER.has(v.type))t.km=t.h;
+  const t={...RT[L]};if(WATER.has(v.type))t.km=t.h;else if(v.unit==='mi')t.km=UNITMI[L];
   const loc=LOC[L];
   return{t,isW:WATER.has(v.type),nf:n=>Number(n).toLocaleString(loc),df:d=>d?new Date(d).toLocaleDateString(loc,{timeZone:'UTC'}):'—',tr:s=>trName(s,L)};
 }
