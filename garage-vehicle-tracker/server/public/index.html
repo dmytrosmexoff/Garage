@@ -162,6 +162,15 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 #rep .qrbox{float:right;display:flex;gap:10px;align-items:center;border:1px solid #888;border-radius:8px;padding:8px;margin:0 0 8px 14px;max-width:52%}
 #rep .qrbox .pin b{font-size:24px;letter-spacing:.25em}#rep .qrbox .qurl{font-size:10px;color:#444;overflow-wrap:anywhere}
 #rep .repdoc h2{clear:both}
+.promo{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#fff4df;color:#4a3300;border:1px solid #e0aa3a;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+@media (prefers-color-scheme:dark){.promo{background:#3a2d12;color:#ffe7b3}}
+.promo .btnr{flex-wrap:wrap}
+.small{font-size:12px;color:var(--mute);margin-top:8px}
+#sysbar{position:fixed;top:8px;left:8px;right:8px;z-index:70;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.sysm{pointer-events:auto;display:flex;gap:8px;align-items:flex-start;background:#3b2a0a;color:#ffe9b0;border:1px solid #d79a1e;border-radius:10px;padding:9px 12px;font-size:13.5px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.sysm.bad{background:#3a1410;color:#ffd6cc;border-color:var(--bad)}
+.sysm b{white-space:nowrap}.sysm span{flex:1}.sysm button{background:none;border:0;color:inherit;font-size:18px;padding:0 4px;width:auto;line-height:1}
+.acts .gear.ce{color:#d79a1e;padding:3px 6px}.ce svg{width:26px;height:26px;display:block}
 @media print{.sync,.toast,.rtool,.rx{display:none!important}#rep{padding:0;max-width:none}@page{size:A4;margin:0}
 #rep .pg thead{display:table-header-group}#rep .pg tfoot{display:table-footer-group}
 #rep .pg thead td,#rep .pg tfoot td{height:13mm;padding:0;border:0}#rep .pg>tbody>tr>td{padding:0 14mm}}
@@ -174,6 +183,7 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 <dialog id="dlg">
   <h3 id="dTitle"></h3>
   <p class="lead" id="dLead"></p>
+  <p class="small" id="dSmall"></p>
   <div class="f" id="dBody"></div>
   <p class="err" id="dErr"></p>
   <div class="btns"><button id="dCancel">Отмена</button><button class="p" id="dOk">Сохранить</button></div>
@@ -183,6 +193,7 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 <div id="toast" class="toast" role="status"></div>
 <div id="sync" class="sync"></div>
 <div id="lb" hidden></div>
+<div id="sysbar"></div>
 
 <script>
 startI18n();
@@ -242,7 +253,7 @@ const relast=it=>{const h=H(it),m=h[h.length-1];it.lastDate=m?m.d:null;it.lastKm
 const money=(n,v)=>fmt(n)+' '+(v.cc||'¥');
 
 let S={cur:null,v:[]},filter='all',loaded=false,saveT=null;
-const setSync=(t,bad)=>{const el=$('sync');if(el){el.textContent=t;el.className='sync'+(bad?' bad':'')}};
+const setSync=(t,bad)=>{const el=$('sync');if(!el)return;if(!(ME&&ME.admin)){el.textContent='';return}el.textContent=t;el.className='sync'+(bad?' bad':'')};
 async function push(){
   saveT=null;setSync('Сохранение…');
   try{
@@ -250,7 +261,7 @@ async function push(){
     if(r.status===401){toast('Сессия истекла, войдите заново',1);setTimeout(()=>location.reload(),1500);return}
     if(!r.ok)throw new Error(r.status);
     setSync('Ок');
-  }catch(e){setSync('Ошибка сохранения в базу',1);toast('Не удалось сохранить в базу данных. Проверьте, что приложение запущено.',1)}
+  }catch(e){setSync('Ошибка сохранения в базу',1);sys('Не удалось сохранить в базу данных. Проверьте, что приложение запущено.',1)}
 }
 const save=()=>{if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(push,250)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveT){clearTimeout(saveT);push()}});
@@ -280,8 +291,8 @@ function baseStatus(it0,odo){
   let r=0,left=null;
   if(it.km&&it.lastKm!=null){const u=odo-it.lastKm;r=u/it.km;left=it.km-u}
   if(it.mo&&it.lastDate)r=Math.max(r,(Date.now()-Date.parse(it.lastDate))/2629800000/it.mo);
-  const k=r>=1?'bad':r>=.8?'soon':'ok';
-  let t=k==='bad'?'просрочено':k==='soon'?'скоро':'в норме';
+  let k=r>=1?'bad':r>=.8?'soon':'ok';if((X.km||X.mo)&&k==='bad')k='soon';
+  let t=(X.km||X.mo)?'проверено':k==='bad'?'просрочено':k==='soon'?'скоро':'в норме';
   if(left!=null)t+=left<0?` (+${fmt(-left)} км)`:` (ещё ${fmt(left)} км)`;
   return{k,t,p:Math.min(r,1)*100,left,r};
 }
@@ -324,7 +335,15 @@ function addTrip(v,d,t){
   L.forEach(e=>{if(e.d>d)e.odo+=t});
   recalc(v);return 0;
 }
-let tt;function toast(m,bad){const el=$('toast');el.textContent=m;el.className='toast show'+(bad?' bad':'');clearTimeout(tt);tt=setTimeout(()=>el.className='toast',3000)}
+function sys(m,bad){
+  if(!(ME&&ME.admin)){console.warn(m);return}
+  const box=$('sysbar');if(!box||[...box.children].some(c=>c.dataset.m===m))return;
+  const d=document.createElement('div');d.className='sysm'+(bad?' bad':'');d.dataset.m=m;
+  d.innerHTML=`<b>⚙ ${trStr('Системное')}</b><span>${esc(trStr(m))}</span><button aria-label="×">×</button>`;
+  d.querySelector('button').onclick=()=>d.remove();
+  box.appendChild(d);
+}
+let tt;function toast(m,bad){const el=$('toast');el.textContent=trStr(m);el.className='toast show'+(bad?' bad':'');clearTimeout(tt);tt=setTimeout(()=>el.className='toast',3000)}
 
 // ---- главная ----
 const ICONS={
@@ -343,6 +362,27 @@ sail:'<svg viewBox="0 0 130 66"><path d="M12 44h106l-16 12H30z"/><path d="M62 6v
 jet:'<svg viewBox="0 0 130 66"><path d="M10 44q4 10 28 10h58q14 0 22-16l-28 2-10-16H66l-6 12H34q-18 0-24 8z"/><path d="M80 24l-4-10h12"/><circle class="h" cx="96" cy="40" r="3"/><path d="M4 62q8-5 16 0t16 0t16 0t16 0t16 0t16 0t16 0"/></svg>'});
 const TILES=[['car','Автомобиль'],['moto','Мотоцикл'],['moped','Мопед'],['boat','Моторная лодка'],['sail','Парусная яхта'],['jet','Гидроцикл']];
 const langBox=()=>`<div class="langbox"><select id="langSel" aria-label="Language">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></div>`;
+let deferredPrompt=null;
+const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(ME&&view==='home')render()});
+window.addEventListener('appinstalled',()=>{deferredPrompt=null});
+async function installApp(){
+  if(!deferredPrompt)return toast('Установка недоступна в этом браузере',1);
+  deferredPrompt.prompt();
+  try{await deferredPrompt.userChoice}catch(e){}
+  deferredPrompt=null;render();
+}
+const CE_ICON='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 24h6v-6h6v-4h12v4h6v6h2v14h-6v4H16v-4H8z"/><path d="M20 30l4 4 7-8" stroke-width="3.2"/></svg>';
+function promoBanner(){
+  if(!ME)return '';
+  let off=k=>{try{return localStorage.getItem('gt_promo_'+k)}catch(e){return null}};
+  if(deferredPrompt&&!isStandalone()&&isMobile()&&!off('inst'))return `<div class="promo"><span>Установите Garage Journal на телефон: так будет быстрее открывать и приходить уведомления.</span><span class="btnr"><button class="p" id="promoInst">Установить</button><button id="promoOff" data-off="inst">Не сейчас</button></span></div>`;
+  if(isStandalone()&&'Notification' in window&&Notification.permission==='default'&&!off('push'))return `<div class="promo"><span>Включите уведомления: напомним о масле, свечах, ремне ГРМ и страховке.</span><span class="btnr"><button class="p" id="promoPush">Включить уведомления</button><button id="promoOff" data-off="push">Не сейчас</button></span></div>`;
+  return '';
+}
+function accPanel(){return `<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${deferredPrompt?'<button id="installBtn">Установить приложение</button>':''}<button id="pushBtn">Уведомления</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия всего вашего транспорта в файле JSON</span></div>`}
+function admPanel(){return `<div class="panel"><button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button><span class="meta">Видны только администратору. Системные оповещения не пропадают сами, их можно закрыть крестиком.</span></div>`}
 function renderHome(){
   WATERCTX=false;MILECTX=false;
   const cnt=k=>S.v.filter(v=>v.type===k).length,list=S.v.filter(v=>!homeType||v.type===homeType);
@@ -359,9 +399,9 @@ function renderHome(){
     }).join('')+`</section>`:'';
   const tiles=`<section class="add"><h2>${S.v.length?'Добавить транспорт':'Выберите тип транспорта'}</h2>`
     +groups.map(([title,types])=>`<div class="sg">${title}</div><div class="tiles">${types.map(k=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${tn[k]}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>`).join('')+`</section>`;
-  $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
-  ${homeSet?`<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${ME&&ME.admin?'<button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button>':''}<button id="instBtn">Установка на телефон</button><button id="pushBtn">Уведомления</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия вашего транспорта в файле JSON</span></div>`:''}
-  ${inboxBar()}${mine}${tiles}`;
+  $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="accBtn">Настройки аккаунта</button>${ME&&ME.admin?'<button id="admSetBtn">Админ-настройки</button>':''}</div>
+  ${homeSet==='acc'?accPanel():''}${homeSet==='adm'&&ME&&ME.admin?admPanel():''}
+  ${promoBanner()}${inboxBar()}${mine}${tiles}`;
 }
 let homeSet=false;
 
@@ -375,7 +415,7 @@ const mileBar=v=>`<div class="mbig"><div class="left">
 function renderVehicle(){
   const v=V();WATERCTX=WATER.has(v.type);MILECTX=!WATERCTX&&v.unit==='mi';const tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
   $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1 class="u">${esc(v.name)}</h1></div>${inboxBar(v.id)}
-  <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['plans','Планы'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
+  <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['plans','Планы'],['set','Настройки авто']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
   <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}${v.price!=null?' за '+money(v.price,v):''}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
   +(tab==='parts'?partsHtml(v):tab==='mile'?mileHtml(v):tab==='plans'?plansHtml(v):setHtml(v));
   if(tab==='mile')initChart();
@@ -389,17 +429,17 @@ function partsHtml(v){
     const rows=groups[cat].filter(([it,s])=>filter==='all'||s.k===filter);
     if(!rows.length)continue;
     list+=`<h2>${nm(cat)}</h2>`+rows.map(([it,s])=>{
-      const X=ext(it),iv=[it.km?fmt(it.km+X.km)+' км':'',it.mo?(it.mo+X.mo)+' мес.':''].filter(Boolean).join(' / ')||'по состоянию';
+      const iv=[it.km?fmt(it.km)+' км':'',it.mo?it.mo+' мес.':''].filter(Boolean).join(' / ')||'по состоянию';
       const h=H(it),e=h[h.length-1],ck=it.checks||[],cl=ck[ck.length-1],phn=h.reduce((a,x)=>a+((x.ph||[]).length),0);
       const last=e?`Заменено: ${e.d?dfmt(e.d):'—'}${e.km!=null?', '+fmt(e.km)+' км':''}${e.cost!=null?', '+money(e.cost,v):''}${h.length>1?` (замен: ${h.length})`:''}`:'Замена не отмечена';
       return `<div class="row ${s.k}"><div><div class="nm">${nm(it.name)}</div><div class="meta">Интервал: ${iv}. ${last}${cl?'. Проверено: '+dfmt(cl.d):''}${e&&detStr(e.x)?'. '+esc(detStr(e.x)):''}${e&&e.note?'. '+lk(e.note):''}${it.note?'. '+lk(it.note):''}</div></div>
       <div><div class="st">${s.t}</div><div class="prog"><i style="width:${s.p}%"></i></div></div>
-      <div class="acts"><button class="gear" data-a="chk" data-id="${it.id}" title="Проверено, продлить интервал" aria-label="Проверено, продлить интервал">✓</button><button class="p" data-a="done" data-id="${it.id}">Заменил</button>${phn?`<button class="gear" data-ph="${it.id}" title="Фото">📷 ${phn}</button>`:''}<button class="gear" data-a="gear" data-id="${it.id}" title="Настройки позиции" aria-label="Настройки позиции">⚙</button></div></div>`}).join('');
+      <div class="acts"><button class="gear ce" data-a="chk" data-id="${it.id}" title="Проверено" aria-label="Проверено">${CE_ICON}</button><button class="p" data-a="done" data-id="${it.id}">Заменил</button>${phn?`<button class="gear" data-ph="${it.id}" title="Фото">📷 ${phn}</button>`:''}<button class="gear" data-a="gear" data-id="${it.id}" title="Настройки позиции" aria-label="Настройки позиции">⚙</button></div></div>`}).join('');
   }
   return `${mileBar(v)}
   <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}<span class="sp"></span><button id="chkBtn">Чек-лист для мастерской</button></div>
   ${list||'<div class="empty">Здесь пока ничего нет</div>'}
-  <p class="hint">Данные хранятся в MySQL. Интервалы ориентировочные: сверьте их с сервис-мануалом. ✓ продлевает интервал после проверки, ⚙ открывает правку интервала, замен и фото.</p>`;
+  `;
 }
 function mileHtml(v){
   const L=v.log.map((e,i)=>({e,i})).reverse().slice(0,60);
@@ -420,10 +460,6 @@ function plansHtml(v){
 const setHtml=v=>`<div class="setrow"><div><b>Данные транспорта</b><span>Название, дата покупки, пробег при покупке, валюта</span></div><button id="editV">Изменить транспорт</button></div>
   <div class="setrow"><div><b>Чек-лист для мастерской</b><span>Лист для печати: что просрочено и что скоро, с пометкой «не обязательно»</span></div><button id="chkBtn">Открыть чек-лист</button></div>
   <div class="setrow"><div><b>Отчёт для печати</b><span>На выбранном языке: история замен, стоимость, комментарии</span></div><button id="repBtn">Открыть отчёт</button></div>
-  <div class="setrow"><div><b>Резервная копия</b><span>Экспорт и импорт всех данных в файл JSON</span></div><span class="btnr"><button id="exp">Экспорт</button><button id="imp">Импорт</button></span></div>
-  <div class="setrow"><div><b>Язык интерфейса</b></div><select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></div>
-  <div class="setrow"><div><b>Установка на телефон</b><span>Иконка на экране и быстрый ввод пробега</span></div><button id="instBtn">Как установить</button></div>
-  <div class="setrow"><div><b>Уведомления</b><span>Напоминания о масле, ремне ГРМ, страховке и техосмотре</span></div><button id="pushBtn">Настроить</button></div>
   <div class="setrow"><div><b>Ссылки для мастера</b><span>QR-коды чек-листов: закрыть ссылку или открыть ответ</span></div><button id="linksBtn">Открыть</button></div>
   <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>
   <details class="adv"><summary>Дополнительно</summary>
@@ -474,7 +510,7 @@ function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V()
 
 let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
-  $('dOk').textContent=o.ok||'Сохранить';$('dTitle').textContent=title;$('dLead').textContent=o.lead||'';$('dErr').textContent='';
+  $('dOk').textContent=o.ok||'Сохранить';$('dTitle').textContent=title;$('dLead').textContent=o.lead||'';$('dSmall').textContent=o.small||'';$('dErr').textContent='';
   $('dBody').innerHTML=fields.map(f=>{
     if(f.sep)return `<h4>${esc(f.sep)}</h4>`;
     if(f.file)return `<label class="w">${f.l}<input id="f_${f.n}" type="file" accept="image/*" multiple></label>`;
@@ -569,13 +605,17 @@ function doneDialog(v,it,pre){
   });
 }
 function checkItem(v,it){
+  if(!it.km&&!it.mo)return toast('У позиции нет интервала',1);
+  dialog('Проверено: '+it.name,[],()=>doCheck(v,it),{ok:'Да, проверил',lead:'Точно ли вы провели проверку? Деталь будет отмечена как проверенная, до следующей замены добавится 20% интервала.',small:'Ответственность за проверку и решение о замене несёте вы: приложение только считает интервал и не заменяет мастера.'});
+}
+function doCheck(v,it){
   let am=0,ak=0;
-  if(it.mo){am=it.mo>12?12:it.mo>3?3:1;ak=it.km?Math.max(100,Math.round(it.km*am/it.mo/100)*100):0}
-  else if(it.km)ak=Math.max(100,Math.round(it.km*.2/100)*100);
-  else return toast('У позиции нет интервала',1);
+  if(it.mo)am=Math.max(1,Math.round(it.mo*.2));
+  if(it.km)ak=Math.round(it.km*.2);
+  if(!am&&!ak)return toast('У позиции нет интервала',1);
   (it.checks=it.checks||[]).push({d:today(),km:v.odo,ak,am});
   save();render();
-  toast('Интервал продлён: '+[am?'+'+am+' мес.':'',ak?'+'+fmt(ak)+' км':''].filter(Boolean).join(' '));
+  toast('Отмечено как проверено: '+[am?'+'+am+' мес.':'',ak?'+'+fmt(ak)+' км':''].filter(Boolean).join(' '));
 }
 function gearDialog(v,it){
   const h=H(it).slice(),ck=(it.checks||[]).slice(),keys=exKeys(it),ks=[],fields=[
@@ -680,22 +720,22 @@ async function adminDialog(){
   x=>{
     const body={publicUrl:x.url.trim(),redirect:x.redir==='1',regOpen:x.reg==='1'};
     api('admin/settings','PUT',body).then(async r=>{ST.publicUrl=r.publicUrl;ST.redirect=body.redirect&&!!r.publicUrl;toast('Сохранено');
-      if(r.publicUrl&&!(await reachable(r.publicUrl)))toast('Адрес сохранён, но сейчас не открывается. Проверьте туннель.',1)}).catch(e=>toast(e.message,1));
+      if(r.publicUrl&&!(await reachable(r.publicUrl)))sys('Адрес сохранён, но сейчас не открывается. Проверьте туннель.',1)}).catch(e=>toast(e.message,1));
   },{lead:'Этот адрес попадает в QR-коды чек-листов. Если поменяете домен, укажите новый: старые напечатанные QR перестанут работать. Чтобы открыть приложение локально без перенаправления, добавьте ?local=1 к адресу.'});
 }
 const PUSH_DAYS=[['1,4','Пн и Чт'],['1','Только понедельник'],['1,3,5','Пн, Ср, Пт'],['1,2,3,4,5','Будни'],['0,1,2,3,4,5,6','Каждый день']];
 const b64=x=>{const p='='.repeat((4-x.length%4)%4),r=atob((x+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...r].map(c=>c.charCodeAt(0)))};
 async function pushEnable(){
-  if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)){toast('Это устройство не поддерживает push. На iPhone установите сайт на экран «Домой» (iOS 16.4 и новее).',1);return false}
+  if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)){toast('Уведомления недоступны на этом устройстве',1);return false}
   const perm=await Notification.requestPermission();
   if(perm!=='granted'){toast('Разрешение на уведомления не выдано',1);return false}
   try{
     const reg=await Promise.race([navigator.serviceWorker.ready,new Promise((_,j)=>setTimeout(()=>j(new Error('sw')),6000))]),k=await api('push/key');
-    if(!k.enabled){toast('На сервере не установлен web-push. Перезапустите приложение.',1);return false}
+    if(!k.enabled){sys('На сервере не установлен web-push. Перезапустите приложение.',1);return false}
     const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(k.publicKey)});
     await api('push/subscribe','POST',{subscription:sub.toJSON(),tz:Intl.DateTimeFormat().resolvedOptions().timeZone});
     return true;
-  }catch(e){toast(e.message==='sw'?'Service worker не запущен. Откройте сайт по https-адресу.':e.message,1);return false}
+  }catch(e){sys(e.message==='sw'?'Service worker не запущен. Откройте сайт по https-адресу.':e.message,1);return false}
 }
 async function pushDisable(){
   try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
@@ -769,7 +809,6 @@ function planDone(v,q){
   if(!it){it={id:uid(),cat:'Прочее',name:q.title||'—',km:0,mo:0,lastKm:null,lastDate:null,note:'',hist:[],checks:[]};isNew=true}
   doneDialog(v,it,{planId:q.id,isNew,cost:q.price,note:[q.url,q.note].filter(Boolean).join(' ')});
 }
-const instDialog=()=>dialog('Установка на телефон',[],()=>{},{ok:'Понятно',lead:'iPhone: откройте сайт в Safari, нажмите «Поделиться» и выберите «На экран Домой». Android: в Chrome откройте меню ⋮ и выберите «Установить приложение» или «Добавить на главный экран». Для быстрого ввода пробега нажмите «+ пробег» у транспорта на главной странице.'});
 
 document.addEventListener('click',e=>{
   const t=e.target,v=V();
@@ -778,10 +817,15 @@ document.addEventListener('click',e=>{
   const rl=t.closest('[data-rl]');if(rl){RL=rl.dataset.rl;return renderReport()}
   if(t.closest('#repBtn')){RMODE='doc';RL=LANG;document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
   if(t.closest('#chkBtn')){RMODE='check';RL=LANG;RCKL=null;RX=new Set();RADD=new Set();RCUS=[];document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
-  if(t.closest('#homeSet')){homeSet=!homeSet;return render()}
+  
   if(t.closest('#logout')){api('auth/logout','POST').catch(()=>{}).finally(()=>location.reload());return}
   if(t.closest('#dbBtn'))return showSetup(null,true);
-  if(t.closest('#instBtn'))return instDialog();
+  if(t.closest('#installBtn'))return installApp();
+  if(t.closest('#promoInst'))return installApp();
+  if(t.closest('#promoPush'))return pushEnable().then(ok=>{if(ok)render()});
+  if(t.closest('#promoOff')){try{localStorage.setItem('gt_promo_'+t.closest('#promoOff').dataset.off,'1')}catch(e){}return render()}
+  if(t.closest('#accBtn')){homeSet=homeSet==='acc'?false:'acc';return render()}
+  if(t.closest('#admSetBtn')){homeSet=homeSet==='adm'?false:'adm';return render()}
   if(t.closest('#admBtn'))return adminDialog();
   if(t.closest('#pushBtn'))return pushDialog();
   if(t.closest('#linksBtn')&&v)return linksDialog(v);
@@ -878,7 +922,7 @@ async function printChecklist(){
     const r=await api('checklist','POST',{vehicleId:v.id,lang:RL,snapshot});
     const base=r.publicUrl||ST.publicUrl||location.origin;
     RCKL={token:r.token,pin:r.pin,url:base+'/m/'+r.token};
-    if(!r.publicUrl)toast('Публичный адрес не задан: QR откроется только в вашей сети',1);
+    if(!r.publicUrl)sys('Публичный адрес не задан: QR откроется только в вашей сети',1);
     renderReport(true);setTimeout(()=>window.print(),350);
   }catch(e){toast(e.message,1);window.print()}
 }
@@ -897,7 +941,7 @@ const wrapDoc=html=>`<table class="pg"><thead><tr><td></td></tr></thead><tbody><
 function renderCheck(v){
   const L=RL,{t,isW,nf,df,tr}=rctx(v,L),c=CK[L],fu=n=>nf(n)+' '+t.km;
   CKSNAP=[];
-  const iv=it=>{const X=ext(it);return[it.km?fu(it.km+X.km):'',it.mo?(it.mo+X.mo)+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond};
+  const iv=it=>{const X=ext(it);return[it.km?fu(it.km):'',it.mo?it.mo+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond};
   const why=it=>{
     const X=ext(it),a=[];
     if(it.km&&it.lastKm!=null)a.push(c.km(v.odo-it.lastKm,it.km+X.km,fu,c.w[isW?1:0]));
@@ -935,7 +979,7 @@ function renderReport(keep){
   if(RMODE==='check')return renderCheck(v);
   const L=RL,{t,nf,df,tr}=rctx(v,L),fu=n=>nf(n)+' '+t.km;
   const mon=n=>n==null?'—':nf(n)+' '+esc(v.cc||'¥');
-  const iv=it=>{const X=ext(it);return[it.km?fu(it.km+X.km):'',it.mo?(it.mo+X.mo)+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond};
+  const iv=it=>{const X=ext(it);return[it.km?fu(it.km):'',it.mo?it.mo+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond};
   const mm=Math.max(0,Math.floor((Date.now()-Date.parse(v.buyDate))/2629800000)),y=Math.floor(mm/12),r=mm%12;
   const own=L==='ja'?`${y?y+t.y:''}${r||!y?r+t.m:''}`:[y?y+' '+t.y:'',r||!y?r+' '+t.m:''].filter(Boolean).join(' ');
   const ds=k=>{const d=v.docs[k];if(!d.end)return t.notSet;const n=Math.round((Date.parse(d.end)-Date.parse(today()))/864e5);return df(d.end)+' ('+(n<0?t.over(-n):t.left(n))+')'+(d.note?', '+lk(d.note):'')};
@@ -985,7 +1029,7 @@ async function loadState(){
   if(ME&&!ME.lang)api('auth/lang','POST',{lang:LANG}).catch(()=>{});
   const x=await api('state');S=x&&Array.isArray(x.v)?x:{cur:null,v:[]};
   const bad=S.v.some(v=>v.cc&&(/\d/.test(v.cc)||String(v.cc).trim().length>4));
-  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Ок');await refreshInbox();render();
+  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Ок');await refreshInbox();render();if(isStandalone()&&'Notification' in window&&Notification.permission==='granted')pushEnable().catch(()=>{});
   if(location.hash==='#inbox'){const d=INBOX.find(x=>x.status==='done');history.replaceState(null,'',location.pathname);if(d)openInbox(d.id)}
   if(location.hash==='#day'&&V()){S.cur=V().id;view='veh';tab='parts';render();history.replaceState(null,'',location.pathname);dayDialog(V())}
 }
@@ -996,7 +1040,7 @@ async function boot(){
   ST=st;
   if(st.redirect&&st.publicUrl&&location.origin!==st.publicUrl&&!/[?&]local=1/.test(location.search)){
     if(await reachable(st.publicUrl)){location.replace(st.publicUrl+location.pathname+location.search+location.hash);return}
-    toast('Публичный адрес недоступен, остаёмся на локальном',1);
+    sys('Публичный адрес недоступен, остаёмся на локальном',1);
   }
   if(!st.ready){
     if(st.configured&&st.connecting){

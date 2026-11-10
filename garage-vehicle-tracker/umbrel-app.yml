@@ -2,7 +2,7 @@ manifestVersion: 1
 id: garage-vehicle-tracker
 category: automation
 name: Garage Journal
-version: "1.3.0"
+version: "1.4.0"
 tagline: Учёт обслуживания автомобиля, мотоцикла и мопеда
 description: >-
   Журнал обслуживания транспорта с хранением данных в MySQL.
@@ -19,6 +19,6 @@ gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""
-releaseNotes: "Ссылка для мастера с QR-кодом и PIN, подтверждение работ владельцем, push-уведомления, публичный адрес с автоматическим перенаправлением, мили/км."
+releaseNotes: "Настройки аккаунта и админ-настройки, системные оповещения только для администратора, кнопка проверки с подтверждением, установка приложения и уведомления по умолчанию."
 submitter: YOUR_NAME
 submission: https://github.com/YOUR_NAME/umbrel-garage
