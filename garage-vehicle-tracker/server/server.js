@@ -1,5 +1,5 @@
 'use strict';
-const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), mysql = require('mysql2/promise');
+const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), vm = require('vm'), mysql = require('mysql2/promise');
 
 const PORT = +process.env.PORT || 3000;
 const CONFIG_PATH = process.env.CONFIG_PATH || '/config/db.json';
@@ -110,6 +110,38 @@ const SCHEMA = [
   sort_order INT NOT NULL DEFAULT 0,
   INDEX idx_plans_vehicle (vehicle_id),
   CONSTRAINT fk_plans_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS settings(
+  k VARCHAR(50) NOT NULL PRIMARY KEY,
+  v TEXT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS checklists(
+  id VARCHAR(32) NOT NULL PRIMARY KEY,
+  user_id INT NOT NULL,
+  vehicle_id VARCHAR(32) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  pin_hash CHAR(64) NOT NULL,
+  lang VARCHAR(5) NOT NULL DEFAULT 'en',
+  status VARCHAR(10) NOT NULL DEFAULT 'open',
+  fails INT NOT NULL DEFAULT 0,
+  snapshot MEDIUMTEXT NULL,
+  entries MEDIUMTEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at DATETIME NULL,
+  UNIQUE KEY uq_cl_token (token_hash),
+  INDEX idx_cl_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS push_subs(
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  ep_hash CHAR(64) NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh VARCHAR(200) NOT NULL,
+  auth VARCHAR(100) NOT NULL,
+  ua VARCHAR(200) NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_push_ep (ep_hash),
+  INDEX idx_push_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
@@ -127,6 +159,13 @@ async function initSchema(p) {
   await addCol(p, 'parts', 'checks', 'TEXT NULL');
   await addCol(p, 'part_history', 'photos', 'TEXT NULL');
   await addCol(p, 'users', 'lang', "VARCHAR(5) NOT NULL DEFAULT ''");
+  await addCol(p, 'users', 'push_on', 'TINYINT NOT NULL DEFAULT 1');
+  await addCol(p, 'users', 'push_days', "VARCHAR(20) NOT NULL DEFAULT '1,4'");
+  await addCol(p, 'users', 'push_hour', 'TINYINT NOT NULL DEFAULT 9');
+  await addCol(p, 'users', 'push_tz', "VARCHAR(60) NOT NULL DEFAULT 'UTC'");
+  await addCol(p, 'users', 'push_last', 'DATE NULL');
+  await addCol(p, 'users', 'push_docs', 'DATE NULL');
+  await addCol(p, 'parts', 'important', 'TINYINT NULL');
   await addCol(p, 'part_history', 'details', 'TEXT NULL');
 }
 const mkPool = c => mysql.createPool({ host: c.host, port: c.port, user: c.user, password: c.password, database: c.database,
@@ -151,7 +190,7 @@ async function connectLoop() {
     try {
       p = mkPool(cfg); await p.query('SELECT 1'); await initSchema(p);
       if (my !== gen) { await p.end(); return; }
-      pool = p; ready = true; connecting = false; lastError = ''; console.log('Database ready'); return;
+      pool = p; ready = true; connecting = false; lastError = ''; console.log('Database ready'); afterReady(); return;
     } catch (e) {
       lastError = errMsg(e); console.log('DB not ready:', lastError);
       if (p) p.end().catch(() => {});
@@ -193,6 +232,7 @@ async function activate(c) {
   gen++;
   const old = pool; pool = p; cfg = c; ready = true; connecting = false; lastError = '';
   if (old) old.end().catch(() => {});
+  afterReady();
   fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(c), { mode: 0o600 });
 }
@@ -239,6 +279,291 @@ const PHJ = x => { const a = (Array.isArray(x) ? x : []).filter(i => /^[a-f0-9]{
 const CKJ = x => { if (!Array.isArray(x)) return null; const a = x.slice(0, 50).map(c => ({ d: D(c && c.d) || '', km: I(c && c.km), ak: I(c && c.ak), am: I(c && c.am) })); return a.length ? JSON.stringify(a) : null; };
 const parseX = s => { try { return s ? JSON.parse(s) : {}; } catch (_) { return {}; } };
 
+// ================= настройки, push, чек-листы мастера =================
+let SET = {}, webpush = null, tickStarted = false, I18N_TR = null;
+async function loadSettings() { const [r] = await pool.query('SELECT k,v FROM settings'); SET = {}; r.forEach(x => { SET[x.k] = x.v; }); }
+async function setSetting(k, v) { await pool.query('INSERT INTO settings(k,v) VALUES (?,?) ON DUPLICATE KEY UPDATE v=VALUES(v)', [k, String(v)]); SET[k] = String(v); }
+const ipOf = req => String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '');
+function trName(s, lang) {   // переводы названий деталей берём из i18n.js
+  if (!I18N_TR) {
+    try {
+      const sb = { window: {}, document: { documentElement: {}, body: {} }, navigator: { language: 'en' }, localStorage: { getItem() { return null; }, setItem() {} }, console };
+      vm.createContext(sb);
+      vm.runInContext(fs.readFileSync(path.join(__dirname, 'public', 'i18n.js'), 'utf8') + ';this.trName=trName;', sb);
+      I18N_TR = sb.trName;
+    } catch (e) { I18N_TR = s2 => s2; }
+  }
+  return I18N_TR(s, lang === 'ru' ? 'ru' : lang);
+}
+const SRV = {
+  ru: { over: 'просрочено', soon: 'скоро', left: n => `осталось ${n} дн.`, overd: n => `просрочено на ${n} дн.`, ins: 'Страховка', ti: 'Техосмотр', more: n => `…и ещё ${n}`, tire: a => `возраст шины ${a} г.`, test: 'Уведомления работают', done: v => `Мастер закончил работу: ${v}. Откройте приложение и подтвердите.` },
+  en: { over: 'overdue', soon: 'due soon', left: n => `${n} d left`, overd: n => `overdue by ${n} d`, ins: 'Insurance', ti: 'Inspection', more: n => `…and ${n} more`, tire: a => `tyre age ${a} y`, test: 'Notifications are working', done: v => `The mechanic finished the work: ${v}. Open the app to review.` },
+  uk: { over: 'прострочено', soon: 'незабаром', left: n => `залишилось ${n} дн.`, overd: n => `прострочено на ${n} дн.`, ins: 'Страховка', ti: 'Техогляд', more: n => `…і ще ${n}`, tire: a => `вік шини ${a} р.`, test: 'Сповіщення працюють', done: v => `Майстер завершив роботу: ${v}. Відкрийте застосунок і підтвердьте.` },
+  ja: { over: '期限超過', soon: 'まもなく', left: n => `残り${n}日`, overd: n => `${n}日超過`, ins: '保険', ti: '車検・点検', more: n => `…ほか${n}件`, tire: a => `タイヤの経年${a}年`, test: '通知は正常に動作しています', done: v => `整備士が作業を完了しました：${v}。アプリを開いて確認してください。` }
+};
+const addMonthsStr = (d, m) => { const x = new Date(d); x.setUTCMonth(x.getUTCMonth() + m); return x.toISOString().slice(0, 10); };
+const IMPORTANT_RX = /масл|фильтр|свеч|грм|тормозная жидкость|тормозные шланги|антифриз|аккумулятор|шин[аы]|крыльчатка|ремень вариатора|приводной ремень|колодк|стоячий такелаж|огнетушител|сигнальные/i;
+function ratioOf(p, odo) {
+  let ak = 0, am = 0; parseJ(p.checks).forEach(c => { ak += c.ak || 0; am += c.am || 0; });
+  const km = p.interval_km ? p.interval_km + ak : 0, mo = p.interval_months ? p.interval_months + am : 0;
+  if (p.last_km == null && !p.last_date) return null;
+  if (!km && !mo) return null;
+  let r = 0;
+  if (km && p.last_km != null) r = (odo - p.last_km) / km;
+  if (mo && p.last_date) r = Math.max(r, (Date.now() - Date.parse(p.last_date)) / 2629800000 / mo);
+  return r;
+}
+function tireAgeOf(name, details) {
+  if (!/шин[аы]/i.test(name)) return null;
+  const d = String((parseX(details) || {}).dot || '').replace(/\D/g, '').slice(-4);
+  if (d.length < 4) return null;
+  const wk = +d.slice(0, 2), yr = 2000 + (+d.slice(2));
+  if (wk < 1 || wk > 53) return null;
+  return (Date.now() - Date.UTC(yr, 0, 1 + 7 * (wk - 1))) / 31557600000;
+}
+async function digestFor(uid, lang, today, inclDocs) {
+  const T = SRV[lang] || SRV.en;
+  const [vs] = await pool.query('SELECT id,name,odo,ins_end,ti_end FROM vehicles WHERE user_id=? ORDER BY sort_order', [uid]);
+  if (!vs.length) return { lines: [], docs: false };
+  const ids = vs.map(v => v.id);
+  const [ps] = await pool.query('SELECT p.*,(SELECT h.details FROM part_history h WHERE h.part_id=p.id ORDER BY h.done_date DESC,h.id DESC LIMIT 1) AS lastdet FROM parts p WHERE p.vehicle_id IN (?)', [ids]);
+  const rows = []; let docs = false;
+  vs.forEach(v => {
+    ps.filter(p => p.vehicle_id === v.id).forEach(p => {
+      const imp = p.important === 1 ? true : p.important === 0 ? false : IMPORTANT_RX.test(p.name);
+      if (!imp) return;
+      let r = ratioOf(p, v.odo); const age = tireAgeOf(p.name, p.lastdet);
+      if (age != null && age >= 5) r = Math.max(r == null ? 0 : r, age >= 6 ? 1 : 0.9);
+      if (r == null || r < 0.9) return;
+      rows.push({ r, text: `${v.name}: ${trName(p.name, lang)} — ${r >= 1 ? T.over : T.soon}${age != null && age >= 5 ? ' (' + T.tire(age.toFixed(1)) + ')' : ''}` });
+    });
+    if (inclDocs) [['ins', v.ins_end], ['ti', v.ti_end]].forEach(([k, end]) => {
+      if (!end || end > addMonthsStr(today, 3)) return;
+      const n = Math.round((Date.parse(end) - Date.parse(today)) / 864e5); docs = true;
+      rows.push({ r: 5, text: `${v.name}: ${T[k]} — ${n < 0 ? T.overd(-n) : T.left(n)}` });
+    });
+  });
+  rows.sort((a, b) => b.r - a.r);
+  const lines = rows.slice(0, 6).map(x => x.text);
+  if (rows.length > 6) lines.push(T.more(rows.length - 6));
+  return { lines, docs };
+}
+function localParts(tz) {
+  const mk = z => new Intl.DateTimeFormat('en-GB', { timeZone: z, weekday: 'short', hour: '2-digit', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' });
+  let f; try { f = mk(tz || 'UTC'); } catch (e) { f = mk('UTC'); }
+  const p = {}; f.formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+  return { date: `${p.year}-${p.month}-${p.day}`, dow: { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[p.weekday], hour: +p.hour };
+}
+async function sendPush(uid, payload) {
+  if (!webpush) return 0;
+  const [subs] = await pool.query('SELECT * FROM push_subs WHERE user_id=?', [uid]);
+  let n = 0;
+  for (const s of subs) {
+    try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 86400 }); n++; }
+    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await pool.query('DELETE FROM push_subs WHERE id=?', [s.id]); else console.log('push error', e.statusCode || e.message); }
+  }
+  return n;
+}
+async function digestTick() {
+  if (!ready || !webpush) return;
+  const [us] = await pool.query('SELECT u.id,u.lang,u.push_days,u.push_hour,u.push_tz,u.push_last,u.push_docs FROM users u WHERE u.push_on=1 AND EXISTS(SELECT 1 FROM push_subs s WHERE s.user_id=u.id)');
+  for (const u of us) {
+    try {
+      const lt = localParts(u.push_tz);
+      if (u.push_last === lt.date) continue;
+      if (!String(u.push_days || '').split(',').includes(String(lt.dow))) continue;
+      if (lt.hour < u.push_hour || lt.hour > u.push_hour + 4) continue;
+      const inclDocs = !u.push_docs || (Date.parse(lt.date) - Date.parse(u.push_docs)) / 864e5 >= 6.5;
+      const d = await digestFor(u.id, u.lang || 'en', lt.date, inclDocs);
+      if (inclDocs && d.docs) await pool.query('UPDATE users SET push_last=?, push_docs=? WHERE id=?', [lt.date, lt.date, u.id]);
+      else await pool.query('UPDATE users SET push_last=? WHERE id=?', [lt.date, u.id]);
+      if (d.lines.length) await sendPush(u.id, { title: 'Garage Journal', body: d.lines.join('\n'), url: './', tag: 'digest' });
+    } catch (e) { console.log('digest error', e.message); }
+  }
+}
+async function initPush() {
+  try { webpush = require('web-push'); } catch (e) { console.log('web-push is not installed'); return; }
+  if (!SET.vapid_pub || !SET.vapid_priv) { const k = webpush.generateVAPIDKeys(); await setSetting('vapid_pub', k.publicKey); await setSetting('vapid_priv', k.privateKey); }
+  webpush.setVapidDetails(SET.public_url && SET.public_url.startsWith('https') ? SET.public_url : 'mailto:garage@example.com', SET.vapid_pub, SET.vapid_priv);
+}
+async function afterReady() {
+  try {
+    await loadSettings(); await initPush();
+    if (!tickStarted) { tickStarted = true; setInterval(() => digestTick().catch(e => console.log(e.message)), 10 * 60 * 1000); setTimeout(() => digestTick().catch(() => {}), 20000); }
+  } catch (e) { console.log('afterReady', e.message); }
+}
+// ---- чек-листы для мастера ----
+const KEY_RX = /^[A-Za-z0-9_-]{1,32}$/, PH_RX = /^[a-f0-9]{16,32}$/;
+function cleanSnapshot(s, lang) {
+  s = s || {}; const v = s.vehicle || {};
+  return {
+    lang: ['ru', 'en', 'uk', 'ja'].includes(lang) ? lang : 'en',
+    vehicle: { name: T(v.name, 200), type: T(v.type, 16), odo: I(v.odo), unit: ['km', 'mi', 'h'].includes(v.unit) ? v.unit : 'km', cc: T(v.cc, 8) },
+    note: T(s.note, 1500), date: D(s.date) || new Date().toISOString().slice(0, 10),
+    items: (Array.isArray(s.items) ? s.items : []).slice(0, 150).filter(it => it && KEY_RX.test(String(it.key))).map(it => ({
+      key: String(it.key), name: T(it.name, 200), cat: T(it.cat, 120), kind: ['must', 'opt', 'nod', 'extra', 'custom'].includes(it.kind) ? it.kind : 'extra',
+      why: T(it.why, 400), prev: T(it.prev, 300),
+      ex: (Array.isArray(it.ex) ? it.ex : []).slice(0, 8).filter(e => e && /^[a-z]{1,12}$/.test(String(e.k))).map(e => ({ k: String(e.k), label: T(e.label, 60), ph: T(e.ph, 40) }))
+    }))
+  };
+}
+function cleanEntry(e, snap) {
+  e = e || {};
+  const x = {}; Object.keys(e.x && typeof e.x === 'object' ? e.x : {}).slice(0, 12).forEach(k => { const v = T(e.x[k], 200).trim(); if (v && /^[a-z]{1,12}$/.test(k)) x[k] = v; });
+  return {
+    state: ['done', 'skip'].includes(e.state) ? e.state : '', date: D(e.date) || '', km: IN(e.km), cost: C(e.cost), x, note: T(e.note, 2000).trim(),
+    ph: (Array.isArray(e.ph) ? e.ph : []).filter(i => PH_RX.test(String(i))).slice(0, 10), review: 'pending'
+  };
+}
+async function masterLoad(token, pin, needOpen) {
+  if (!/^[a-f0-9]{24}$/.test(String(token))) throw httpErr(404, 'Ссылка не найдена');
+  const [r] = await pool.query('SELECT * FROM checklists WHERE token_hash=?', [sha(token)]);
+  const c = r[0]; if (!c) throw httpErr(404, 'Ссылка не найдена');
+  if (['closed', 'accepted'].includes(c.status)) return { c, closed: true };
+  if (c.fails >= 5) throw httpErr(423, 'Слишком много попыток: ссылка заблокирована');
+  if (sha(token + ':' + String(pin || '')) !== c.pin_hash) {
+    await pool.query('UPDATE checklists SET fails=fails+1 WHERE id=?', [c.id]);
+    const e = httpErr(401, 'Неверный PIN-код'); e.left = Math.max(0, 4 - c.fails); throw e;
+  }
+  if (c.fails) await pool.query('UPDATE checklists SET fails=0 WHERE id=?', [c.id]);
+  if (needOpen && c.status !== 'open') throw httpErr(409, 'Работа уже отправлена владельцу');
+  return { c, closed: false };
+}
+const parseObj = s => { try { const v = JSON.parse(s || '{}'); return v && typeof v === 'object' ? v : {}; } catch (_) { return {}; } };
+
+async function route2(req, res, u, m) {
+  // страница мастера
+  if (m === 'GET' && /^\/m\/[a-f0-9]{24}$/.test(u)) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+    fs.createReadStream(path.join(__dirname, 'public', 'master.html')).pipe(res); return true;
+  }
+  const mm = /^\/api\/m\/([a-f0-9]{24})\/(open|entry|finish|photo)(?:\/([a-f0-9]{16,32}))?$/.exec(u);
+  if (mm) {
+    if (!ready) throw httpErr(503, 'База данных не подключена');
+    const token = mm[1], act = mm[2];
+    if (act === 'photo' && m === 'GET') {
+      const { c, closed } = await masterLoad(token, req.headers['x-pin'], false);
+      if (closed) throw httpErr(410, 'Ссылка закрыта');
+      const [p] = await pool.query('SELECT mime,data FROM photos WHERE id=? AND user_id=? AND created_at>=?', [mm[3] || '', c.user_id, c.created_at]);
+      if (!p[0]) throw httpErr(404, 'Фото не найдено');
+      res.writeHead(200, { 'Content-Type': p[0].mime, 'Cache-Control': 'private, max-age=3600' }); res.end(p[0].data); return true;
+    }
+    if (act === 'photo' && m === 'POST') {
+      const { c, closed } = await masterLoad(token, req.headers['x-pin'], true);
+      if (closed) throw httpErr(410, 'Ссылка закрыта');
+      const mime = String(req.headers['content-type'] || '').split(';')[0].trim();
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw httpErr(415, 'Нужно изображение');
+      const [cnt] = await pool.query('SELECT COUNT(*) n FROM photos WHERE user_id=? AND created_at>=?', [c.user_id, c.created_at]);
+      if (cnt[0].n >= 60) throw httpErr(429, 'Слишком много фото');
+      const buf = await readRaw(req, 8e6); if (!buf.length) throw httpErr(400, 'Пустой файл');
+      const id = crypto.randomBytes(12).toString('hex');
+      await pool.query('INSERT INTO photos(id,user_id,mime,data) VALUES (?,?,?,?)', [id, c.user_id, mime, buf]);
+      json(res, 200, { id }); return true;
+    }
+    if (m !== 'POST') throw httpErr(405, 'method not allowed');
+    const b = await readBody(req);
+    if (act === 'open') {
+      const { c, closed } = await masterLoad(token, b.pin, false);
+      if (closed) { json(res, 200, { status: c.status }); return true; }
+      json(res, 200, { status: c.status, snapshot: parseObj(c.snapshot), entries: parseObj(c.entries) }); return true;
+    }
+    if (act === 'entry') {
+      const { c, closed } = await masterLoad(token, b.pin, true);
+      if (closed) throw httpErr(410, 'Ссылка закрыта');
+      const snap = parseObj(c.snapshot), key = String(b.key || '');
+      if (!(snap.items || []).some(i => i.key === key)) throw httpErr(400, 'Неизвестная позиция');
+      const ent = parseObj(c.entries); ent[key] = cleanEntry(b.entry, snap);
+      await pool.query('UPDATE checklists SET entries=? WHERE id=?', [JSON.stringify(ent), c.id]);
+      json(res, 200, { ok: true }); return true;
+    }
+    if (act === 'finish') {
+      const { c, closed } = await masterLoad(token, b.pin, true);
+      if (closed) throw httpErr(410, 'Ссылка закрыта');
+      await pool.query("UPDATE checklists SET status='done', finished_at=NOW() WHERE id=?", [c.id]);
+      const snap = parseObj(c.snapshot), [us] = await pool.query('SELECT lang,push_on FROM users WHERE id=?', [c.user_id]);
+      const L = SRV[(us[0] && us[0].lang)] || SRV.en;
+      if (us[0] && us[0].push_on) sendPush(c.user_id, { title: 'Garage Journal', body: L.done((snap.vehicle || {}).name || ''), url: './#inbox', tag: 'master' }).catch(() => {});
+      json(res, 200, { ok: true }); return true;
+    }
+  }
+  // настройки администратора
+  if (u === '/api/admin/settings') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    if (m === 'GET') { json(res, 200, { publicUrl: SET.public_url || '', redirect: SET.redirect === '1', regOpen: SET.reg_open === '1' }); return true; }
+    if (m === 'PUT') {
+      const b = await readBody(req); let url = '';
+      if (b.publicUrl) { try { const x = new URL(String(b.publicUrl).trim()); if (!/^https?:$/.test(x.protocol)) throw 0; url = x.origin; } catch (_) { throw httpErr(400, 'Некорректный адрес. Пример: https://auto.example.com'); } }
+      await setSetting('public_url', url); await setSetting('redirect', b.redirect && url ? '1' : '0'); await setSetting('reg_open', b.regOpen ? '1' : '0');
+      await initPush(); json(res, 200, { ok: true, publicUrl: url }); return true;
+    }
+  }
+  // чек-листы владельца
+  if (u === '/api/checklist' && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req);
+    const [vv] = await pool.query('SELECT id FROM vehicles WHERE id=? AND user_id=?', [T(b.vehicleId, 32), user.id]);
+    if (!vv[0]) throw httpErr(400, 'Транспорт не найден');
+    const snap = cleanSnapshot(b.snapshot, b.lang);
+    if (!snap.items.length) throw httpErr(400, 'Пустой чек-лист');
+    const id = crypto.randomBytes(12).toString('hex'), token = crypto.randomBytes(12).toString('hex'), pin = String(crypto.randomInt(0, 10000)).padStart(4, '0');
+    await pool.query("UPDATE checklists SET status='closed' WHERE user_id=? AND vehicle_id=? AND status='open'", [user.id, vv[0].id]);
+    await pool.query('INSERT INTO checklists(id,user_id,vehicle_id,token_hash,pin_hash,lang,status,snapshot,entries) VALUES (?,?,?,?,?,?,?,?,?)', [id, user.id, vv[0].id, sha(token), sha(token + ':' + pin), snap.lang, 'open', JSON.stringify(snap), '{}']);
+    json(res, 200, { id, token, pin, publicUrl: SET.public_url || '' }); return true;
+  }
+  if (u === '/api/checklists' && m === 'GET') {
+    const user = await needUser(req);
+    const [r] = await pool.query('SELECT id,vehicle_id,status,created_at,finished_at,entries,snapshot FROM checklists WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [user.id]);
+    json(res, 200, r.map(c => { const e = parseObj(c.entries), s = parseObj(c.snapshot); return { id: c.id, vehicleId: c.vehicle_id, status: c.status, created: c.created_at, finished: c.finished_at, done: Object.values(e).filter(x => x.state === 'done').length, total: (s.items || []).length, vehicle: (s.vehicle || {}).name || '' }; })); return true;
+  }
+  const cm = /^\/api\/checklist\/([a-f0-9]{24})(?:\/(decide))?$/.exec(u);
+  if (cm) {
+    const user = await needUser(req);
+    const [r] = await pool.query('SELECT * FROM checklists WHERE id=? AND user_id=?', [cm[1], user.id]);
+    const c = r[0]; if (!c) throw httpErr(404, 'Чек-лист не найден');
+    if (m === 'GET' && !cm[2]) { json(res, 200, { id: c.id, vehicleId: c.vehicle_id, status: c.status, finished: c.finished_at, snapshot: parseObj(c.snapshot), entries: parseObj(c.entries) }); return true; }
+    if (m === 'POST' && cm[2] === 'decide') {
+      const b = await readBody(req), ent = parseObj(c.entries);
+      (Array.isArray(b.accepted) ? b.accepted : []).forEach(k => { if (ent[k]) ent[k].review = 'accepted'; });
+      Object.keys(b.rejected && typeof b.rejected === 'object' ? b.rejected : {}).forEach(k => { if (ent[k]) { ent[k].review = 'rejected'; ent[k].ownerNote = T(b.rejected[k], 300); } });
+      const status = b.action === 'reopen' ? 'open' : b.action === 'close' ? 'closed' : 'accepted';
+      await pool.query('UPDATE checklists SET entries=?, status=?, fails=0 WHERE id=?', [JSON.stringify(ent), status, c.id]);
+      json(res, 200, { ok: true, status }); return true;
+    }
+  }
+  // push
+  if (u === '/api/push/key' && m === 'GET') { await needUser(req); json(res, 200, { enabled: !!webpush && !!SET.vapid_pub, publicKey: SET.vapid_pub || '' }); return true; }
+  if (u === '/api/push/prefs') {
+    const user = await needUser(req);
+    if (m === 'GET') {
+      const [r] = await pool.query('SELECT push_on,push_days,push_hour,push_tz FROM users WHERE id=?', [user.id]);
+      const [n] = await pool.query('SELECT COUNT(*) n FROM push_subs WHERE user_id=?', [user.id]);
+      json(res, 200, { on: !!r[0].push_on, days: r[0].push_days, hour: r[0].push_hour, tz: r[0].push_tz, devices: n[0].n }); return true;
+    }
+    if (m === 'PUT') {
+      const b = await readBody(req);
+      const days = String(b.days || '').split(',').filter(d => /^[0-6]$/.test(d)).join(',') || '1,4';
+      await pool.query("UPDATE users SET push_on=?, push_days=?, push_hour=?, push_tz=COALESCE(NULLIF(?,''),push_tz) WHERE id=?", [b.on ? 1 : 0, days, Math.min(23, Math.max(0, I(b.hour))), T(b.tz, 60), user.id]);
+      json(res, 200, { ok: true }); return true;
+    }
+  }
+  if (u === '/api/push/subscribe' && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req), s = b.subscription || {};
+    if (!s.endpoint || !s.keys || !s.keys.p256dh || !s.keys.auth) throw httpErr(400, 'Некорректная подписка');
+    await pool.query('INSERT INTO push_subs(user_id,ep_hash,endpoint,p256dh,auth,ua) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id),endpoint=VALUES(endpoint),p256dh=VALUES(p256dh),auth=VALUES(auth),ua=VALUES(ua)', [user.id, sha(String(s.endpoint)), String(s.endpoint).slice(0, 2000), T(s.keys.p256dh, 200), T(s.keys.auth, 100), T(req.headers['user-agent'], 200)]);
+    if (b.tz) await pool.query('UPDATE users SET push_tz=? WHERE id=?', [T(b.tz, 60), user.id]);
+    json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/push/unsubscribe' && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req);
+    await pool.query('DELETE FROM push_subs WHERE user_id=? AND ep_hash=?', [user.id, sha(String(b.endpoint || ''))]); json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/push/test' && m === 'POST') {
+    const user = await needUser(req), [r] = await pool.query('SELECT lang FROM users WHERE id=?', [user.id]);
+    const n = await sendPush(user.id, { title: 'Garage Journal', body: (SRV[r[0].lang] || SRV.en).test, url: './', tag: 'test' });
+    json(res, 200, { sent: n }); return true;
+  }
+  return false;
+}
+
 async function getState(uid) {
   const [vs] = await pool.query('SELECT * FROM vehicles WHERE user_id=? ORDER BY sort_order, created_at', [uid]);
   const [u] = await pool.query('SELECT cur_vehicle FROM users WHERE id=?', [uid]);
@@ -252,7 +577,7 @@ async function getState(uid) {
     hs.forEach(h => (hist[h.part_id] = hist[h.part_id] || []).push({ d: h.done_date, km: h.km, cost: h.cost, note: h.note || '', x: parseX(h.details), ph: parseJ(h.photos) }));
     ps.forEach(p => (parts[p.vehicle_id] = parts[p.vehicle_id] || []).push({
       id: p.id, cat: p.category, name: p.name, km: p.interval_km, mo: p.interval_months,
-      lastKm: p.last_km, lastDate: p.last_date, note: p.note || '', checks: parseJ(p.checks), hist: hist[p.id] || [] }));
+      lastKm: p.last_km, lastDate: p.last_date, note: p.note || '', checks: parseJ(p.checks), imp: p.important, hist: hist[p.id] || [] }));
     ls.forEach(l => (logs[l.vehicle_id] = logs[l.vehicle_id] || []).push({ d: l.log_date, odo: l.odo, trip: l.trip }));
     const [pl] = await pool.query('SELECT * FROM plans WHERE vehicle_id IN (?) ORDER BY vehicle_id, sort_order', [ids]);
     pl.forEach(q => (plans[q.vehicle_id] = plans[q.vehicle_id] || []).push({ id: q.id, itemId: q.item_id || '', title: q.title, url: q.url, price: q.price, note: q.note || '' }));
@@ -298,9 +623,9 @@ async function putState(uid, s) {
 
       const items = (Array.isArray(v.items) ? v.items : []).filter(it => it && T(it.id, 32));
       if (items.length) await c.query(
-        'INSERT INTO parts(id,vehicle_id,category,name,interval_km,interval_months,last_km,last_date,note,checks,sort_order) VALUES ?',
+        'INSERT INTO parts(id,vehicle_id,category,name,interval_km,interval_months,last_km,last_date,note,checks,important,sort_order) VALUES ?',
         [items.map((it, i) => [T(it.id, 32), id, T(it.cat, 120) || 'Прочее', T(it.name, 200), I(it.km), I(it.mo),
-                               IN(it.lastKm), D(it.lastDate), T(it.note, 4000), CKJ(it.checks), i])]);
+                               IN(it.lastKm), D(it.lastDate), T(it.note, 4000), CKJ(it.checks), it.imp === true || it.imp === 1 ? 1 : it.imp === false || it.imp === 0 ? 0 : null, i])]);
       const hrows = [];
       items.forEach(it => (Array.isArray(it.hist) ? it.hist : []).forEach(h =>
         hrows.push([T(it.id, 32), D(h.d), IN(h.km), C(h.cost), T(h.note, 4000), X(h.x), PHJ(h.ph)])));
@@ -343,6 +668,7 @@ const readRaw = (req, max) => new Promise((ok, fail) => {
 });
 const STATIC = {
   '/i18n.js': ['i18n.js', 'application/javascript; charset=utf-8'],
+  '/qr.js': ['qr.js', 'application/javascript; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/sw.js': ['sw.js', 'application/javascript; charset=utf-8'],
   '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'],
@@ -358,7 +684,7 @@ async function route(req, res) {
     let hasUsers = false;
     if (ready) { const [r] = await pool.query('SELECT COUNT(*) n FROM users'); hasUsers = r[0].n > 0; }
     return json(res, 200, {
-      configured: !!cfg, ready, connecting, error: lastError, hasUsers, user,
+      configured: !!cfg, ready, connecting, error: lastError, hasUsers, user, publicUrl: SET.public_url || '', redirect: SET.redirect === '1' && !!SET.public_url, regOpen: SET.reg_open === '1',
       defaults: { host: ENV.host, port: ENV.port, user: ENV.user, database: ENV.database },
       current: cfg ? { host: cfg.host, port: cfg.port, user: cfg.user, database: cfg.database, builtin: !!cfg.builtin } : null
     });
@@ -380,6 +706,7 @@ async function route(req, res) {
     if (pw.length < 6) throw httpErr(400, 'Пароль: не короче 6 символов');
     const [cnt] = await pool.query('SELECT COUNT(*) n FROM users');
     const first = cnt[0].n === 0;
+    if (!first && SET.reg_open !== '1') throw httpErr(403, 'Регистрация закрыта администратором');
     try {
       const lang = ['ru', 'en', 'uk', 'ja'].includes(b.lang) ? b.lang : '';
       const [r] = await pool.query('INSERT INTO users(login,pass_hash,is_admin,lang) VALUES (?,?,?,?)', [login, hashPw(pw), first ? 1 : 0, lang]);
@@ -391,10 +718,12 @@ async function route(req, res) {
   if (m === 'POST' && u === '/api/auth/login') {
     if (!ready) throw httpErr(503, 'База данных не подключена');
     const b = await readBody(req), login = String(b.login || '').trim(), key = login.toLowerCase(), f = fails.get(key);
-    if (f && f.until > Date.now()) throw httpErr(429, 'Слишком много попыток, подождите минуту');
+    const ik = 'ip|' + ipOf(req), fi = fails.get(ik);
+    if ((f && f.until > Date.now()) || (fi && fi.until > Date.now())) throw httpErr(429, 'Слишком много попыток, подождите минуту');
     const [r] = await pool.query('SELECT * FROM users WHERE login=?', [login]);
     if (!r[0] || !checkPw(String(b.password || ''), r[0].pass_hash)) {
       const n = (f ? f.n : 0) + 1; fails.set(key, { n, until: n >= 5 ? Date.now() + 60000 : 0 });
+      const ni = (fi && fi.t > Date.now() - 6e5 ? fi.n : 0) + 1; fails.set(ik, { n: ni, t: Date.now(), until: ni >= 30 ? Date.now() + 6e5 : 0 });
       throw httpErr(401, 'Неверный логин или пароль');
     }
     fails.delete(key);
@@ -407,6 +736,7 @@ async function route(req, res) {
     res.setHeader('Set-Cookie', 'gt=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
     return json(res, 200, { ok: true });
   }
+  if (await route2(req, res, u, m)) return;
   if (m === 'POST' && u === '/api/auth/lang') {
     const user = await needUser(req), b = await readBody(req);
     if (['ru', 'en', 'uk', 'ja'].includes(b.lang)) await pool.query('UPDATE users SET lang=? WHERE id=?', [b.lang, user.id]);

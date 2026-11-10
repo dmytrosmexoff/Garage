@@ -12,6 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Garage">
 <script src="i18n.js"></script>
+<script src="qr.js"></script>
 <style>
 :root{color-scheme:light dark;--bg:#e8ecef;--panel:#f6f8f9;--ink:#1b2733;--mute:#5d6b78;--line:#cfd7dd;--acc:#1f5f7a;--ok:#2e7d4f;--soon:#b87b00;--bad:#b3341f;--none:#8a97a3;--onacc:#fff}
 @media (prefers-color-scheme:dark){:root{--bg:#141b21;--panel:#1d262e;--ink:#e4eaee;--mute:#93a1ad;--line:#2f3b45;--acc:#5fb0cf;--ok:#5cc08a;--soon:#e0aa3a;--bad:#ee7a63;--none:#6f7d89;--onacc:#0c1419}}
@@ -155,6 +156,12 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 .vc>button:last-child{white-space:nowrap;padding:0 14px}
 .add h2{border:0;font-size:18px;margin:0 0 2px;padding:0}
 @media (max-width:620px){.vcm svg{width:56px}.vcm b{font-size:17px}}
+.inbar{display:block;width:100%;margin:0 0 14px;padding:13px 16px;font-size:17px;font-weight:700;text-align:left;color:#fff;background:linear-gradient(135deg,#b3341f,#d9611f);border:0;border-radius:12px;box-shadow:0 4px 14px rgba(179,52,31,.4)}
+.ib{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--ok);border-radius:10px;padding:12px;margin-bottom:10px}
+.ib .f{margin-top:8px}.ib b{font-size:17px}.ib .acc{flex-direction:row;align-items:center;gap:8px;font-size:15px;color:var(--ink)}.ib .acc input{width:auto}
+#rep .qrbox{float:right;display:flex;gap:10px;align-items:center;border:1px solid #888;border-radius:8px;padding:8px;margin:0 0 8px 14px;max-width:52%}
+#rep .qrbox .pin b{font-size:24px;letter-spacing:.25em}#rep .qrbox .qurl{font-size:10px;color:#444;overflow-wrap:anywhere}
+#rep .repdoc h2{clear:both}
 @media print{.sync,.toast,.rtool,.rx{display:none!important}#rep{padding:0;max-width:none}@page{size:A4;margin:0}
 #rep .pg thead{display:table-header-group}#rep .pg tfoot{display:table-footer-group}
 #rep .pg thead td,#rep .pg tfoot td{height:13mm;padding:0;border:0}#rep .pg>tbody>tr>td{padding:0 14mm}}
@@ -353,8 +360,8 @@ function renderHome(){
   const tiles=`<section class="add"><h2>${S.v.length?'Добавить транспорт':'Выберите тип транспорта'}</h2>`
     +groups.map(([title,types])=>`<div class="sg">${title}</div><div class="tiles">${types.map(k=>`<button class="tile" data-type="${k}">${ICONS[k]}<b>${tn[k]}</b><span>${cnt(k)?'в гараже: '+cnt(k):'добавить'}</span></button>`).join('')}</div>`).join('')+`</section>`;
   $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="homeSet">Настройки</button></div>
-  ${homeSet?`<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${ME&&ME.admin?'<button id="dbBtn">Подключение к базе</button>':''}<button id="instBtn">Установка на телефон</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия вашего транспорта в файле JSON</span></div>`:''}
-  ${mine}${tiles}`;
+  ${homeSet?`<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${ME&&ME.admin?'<button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button>':''}<button id="instBtn">Установка на телефон</button><button id="pushBtn">Уведомления</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия вашего транспорта в файле JSON</span></div>`:''}
+  ${inboxBar()}${mine}${tiles}`;
 }
 let homeSet=false;
 
@@ -367,7 +374,7 @@ const mileBar=v=>`<div class="mbig"><div class="left">
     return `<div class="dm ${s.k}" ${d.note?`title="${esc(d.note)}"`:''}><div><b>${t}</b><div>${s.t}${d.end?', до '+dfmt(d.end):''}</div></div><button data-doc="${k}">${d.end?'Продлить':'Задать'}</button></div>`}).join('')}</div></div>`;
 function renderVehicle(){
   const v=V();WATERCTX=WATER.has(v.type);MILECTX=!WATERCTX&&v.unit==='mi';const tl=(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
-  $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1 class="u">${esc(v.name)}</h1></div>
+  $('main').innerHTML=`<div class="top"><button id="goHome">← Главная</button><h1 class="u">${esc(v.name)}</h1></div>${inboxBar(v.id)}
   <div class="tabs">${[['parts','Расходники'],['mile','Пробег'],['plans','Планы'],['set','Настройки']].map(([k,n])=>`<button class="tab ${tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}</div>
   <p class="info">${tl}. Куплен ${dfmt(v.buyDate)}${v.price!=null?' за '+money(v.price,v):''}, пробег при покупке ${fmt(v.buyKm)} км. С покупки проехано ${fmt(Math.max(0,v.odo-v.buyKm))} км, владение ${owned(v)}.${v.off?` Панель показывает ${fmt(v.odo-v.off)} км.`:''}</p>`
   +(tab==='parts'?partsHtml(v):tab==='mile'?mileHtml(v):tab==='plans'?plansHtml(v):setHtml(v));
@@ -416,6 +423,8 @@ const setHtml=v=>`<div class="setrow"><div><b>Данные транспорта<
   <div class="setrow"><div><b>Резервная копия</b><span>Экспорт и импорт всех данных в файл JSON</span></div><span class="btnr"><button id="exp">Экспорт</button><button id="imp">Импорт</button></span></div>
   <div class="setrow"><div><b>Язык интерфейса</b></div><select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></div>
   <div class="setrow"><div><b>Установка на телефон</b><span>Иконка на экране и быстрый ввод пробега</span></div><button id="instBtn">Как установить</button></div>
+  <div class="setrow"><div><b>Уведомления</b><span>Напоминания о масле, ремне ГРМ, страховке и техосмотре</span></div><button id="pushBtn">Настроить</button></div>
+  <div class="setrow"><div><b>Ссылки для мастера</b><span>QR-коды чек-листов: закрыть ссылку или открыть ответ</span></div><button id="linksBtn">Открыть</button></div>
   <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>
   <details class="adv"><summary>Дополнительно</summary>
   <div class="setrow"><div><b>Замена приборной панели</b><span>Если новая панель показывает 0, пробег продолжит считаться правильно.</span>${(v.panels||[]).map(p=>`<span>${dfmt(p.d)}: старая ${fmt(p.old)} км, новая ${fmt(p.nw)} км</span>`).join('')}</div><button id="panelBtn">Панель заменена</button></div></details>`;
@@ -461,7 +470,7 @@ function initChart(){
   sv.onpointercancel=e=>{pts.delete(e.pointerId);pin=0};
   sv.onwheel=e=>{e.preventDefault();zoomBy(e.deltaY>0?1.25:.8,geo(e).fr)};
 }
-function render(){if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}}
+function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}}
 
 let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
@@ -571,7 +580,8 @@ function checkItem(v,it){
 function gearDialog(v,it){
   const h=H(it).slice(),ck=(it.checks||[]).slice(),keys=exKeys(it),ks=[],fields=[
     {n:'name',l:'Название',w:1,v:it.name},{n:'km',l:'Интервал, км (0 — нет)',t:'number',v:it.km},{n:'mo',l:'Интервал, мес. (0 — нет)',t:'number',v:it.mo},
-    {n:'note',l:'Заметка',w:1,v:it.note}];
+    {n:'note',l:'Заметка',w:1,v:it.note},
+    {n:'imp',l:'Важная деталь (для уведомлений)',w:1,opts:[['','По умолчанию'],['1','Да'],['0','Нет']],v:it.imp===true||it.imp===1?'1':it.imp===false||it.imp===0?'0':''}];
   if(ck.length)fields.push({sep:'Проверки'},...ck.map((c,i)=>({n:'q'+i,l:`Проверка ${dfmt(c.d)}: +${c.am} мес., +${fmt(c.ak)} км`,w:1,opts:[['','Оставить'],['1','Удалить проверку']],v:''})));
   h.forEach((e,i)=>{
     ks[i]=[...new Set([...keys,...Object.keys(e.x||{}).filter(k=>EX[k])])];
@@ -586,7 +596,7 @@ function gearDialog(v,it){
   fields.push({sep:'Удаление'},{n:'del',l:'Позиция в списке',w:1,opts:[['','Оставить'],['1','Удалить позицию целиком']],v:''});
   dialog('⚙ '+it.name,fields,x=>{
     if(x.del){v.items=v.items.filter(q=>q!==it);save();render();return}
-    it.name=x.name.trim()||it.name;it.km=+x.km||0;it.mo=+x.mo||0;it.note=x.note;
+    it.name=x.name.trim()||it.name;it.km=+x.km||0;it.mo=+x.mo||0;it.note=x.note;it.imp=x.imp===''?null:x.imp==='1';
     it.checks=ck.filter((c,i)=>!x['q'+i]);
     it.hist=[];const adds=[];
     h.forEach((e,i)=>{
@@ -599,6 +609,112 @@ function gearDialog(v,it){
     it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);save();render();
     adds.forEach(([ne,f])=>attachPhotos(ne,f));
   },{lead:'Поправьте интервал, исправьте или удалите записи о заменах и проверках, добавьте фото либо уберите позицию из списка.'});
+}
+const inboxBar=vid=>{const d=INBOX.filter(c=>c.status==='done'&&(!vid||c.vehicleId===vid));return d.length?`<button class="inbar" data-inbox="${d[0].id}">🔔 Ответ мастера: ${d.length}</button>`:''};
+async function openInbox(id){
+  try{
+    const c=await api('checklist/'+id),v=S.v.find(x=>x.id===c.vehicleId);
+    if(!v)return toast('Транспорт не найден',1);
+    INB={c,v};S.cur=v.id;view='inbox';render();window.scrollTo(0,0);
+  }catch(e){toast(e.message,1)}
+}
+function inbCard(i,e,v){
+  const k=i.key,ex=(i.ex||[]).map(q=>`<label>${esc(q.label)}<input data-ib="${k}|x_${q.k}" value="${esc((e.x||{})[q.k]||'')}"></label>`).join('');
+  return `<div class="ib"><label class="acc"><input type="checkbox" id="ia_${k}" checked> <b>${nm(i.name)}</b></label>
+  <div class="f"><label>Дата<input type="date" data-ib="${k}|date" value="${esc(e.date||today())}"></label><label>Пробег<input type="number" data-ib="${k}|km" value="${e.km!=null?e.km:v.odo}"></label>
+  <label class="w">Стоимость, ${esc(v.cc||'¥')}<input type="number" data-ib="${k}|cost" value="${e.cost!=null?e.cost:''}"></label>${ex}
+  <label class="w">Комментарий<input data-ib="${k}|note" value="${esc(e.note||'')}"></label>
+  ${(e.ph||[]).length?`<div class="w"><button data-lbx="${e.ph.join(',')}">📷 ${e.ph.length}</button></div>`:''}
+  <label class="w">Причина отказа<input data-ib="${k}|rej" value=""></label></div></div>`;
+}
+function renderInbox(){
+  const {c,v}=INB,ents=c.entries||{},items=(c.snapshot||{}).items||[];
+  WATERCTX=WATER.has(v.type);MILECTX=!WATERCTX&&v.unit==='mi';
+  const done=items.filter(i=>(ents[i.key]||{}).state==='done'&&(ents[i.key]||{}).review!=='accepted'),skipped=items.filter(i=>(ents[i.key]||{}).state==='skip');
+  $('main').innerHTML=`<div class="top"><button id="inbBack">← Назад</button><h1>Ответ мастера</h1></div>
+  <p class="info"><span class="u">${esc(v.name)}</span>. Мастер закончил работу: ${c.finished?dfmt(String(c.finished).slice(0,10)):''}</p>
+  ${done.map(i=>inbCard(i,ents[i.key],v)).join('')||'<div class="empty">Мастер не отметил выполненных работ</div>'}
+  ${skipped.length?'<h2>Пропущено мастером:</h2>'+skipped.map(i=>`<div class="meta">${nm(i.name)}${(ents[i.key].note?' — <span class="u">'+esc(ents[i.key].note)+'</span>':'')}</div>`).join(''):''}
+  <div class="btnr" style="margin-top:14px"><button class="p" id="inbAccept">Принять выбранные и закрыть ссылку</button><button id="inbReopen">Вернуть мастеру отклонённое</button><button id="inbClose">Закрыть ссылку без принятия</button></div>`;
+}
+async function inbDecide(action){
+  const {c,v}=INB,ents=c.entries||{},items=(c.snapshot||{}).items||[],acc=[],rej={};
+  const val=(k,f)=>{const el=document.querySelector(`[data-ib="${k}|${f}"]`);return el?el.value:''};
+  const todo=items.filter(i=>(ents[i.key]||{}).state==='done'&&(ents[i.key]||{}).review!=='accepted');
+  if(action==='reopen'&&!todo.some(i=>!$('ia_'+i.key).checked))return toast('Нет отклонённых позиций',1);
+  todo.forEach(i=>{
+    const key=i.key,e=ents[key],on=$('ia_'+key).checked;
+    if(!on){if(action!=='close')rej[key]=val(key,'rej');return}
+    if(action==='close')return;
+    const km=val(key,'km')===''?v.odo:+val(key,'km'),x={};
+    (i.ex||[]).forEach(q=>{const t=val(key,'x_'+q.k).trim();if(t)x[q.k]=t});
+    let it=v.items.find(z=>z.id===key);
+    if(!it){it={id:uid(),cat:i.cat||'Прочее',name:i.name,km:0,mo:0,lastKm:null,lastDate:null,note:'',hist:[],checks:[]};v.items.push(it)}
+    it.hist=H(it).slice();
+    it.hist.push({d:val(key,'date')||today(),km,cost:val(key,'cost')===''?null:+val(key,'cost'),note:val(key,'note').trim(),x,ph:(e.ph||[]).slice()});
+    it.hist.sort((a,b)=>(a.d||'').localeCompare(b.d||''));relast(it);it.checks=[];
+    if(km>v.odo)setReading(v,today(),km);
+    acc.push(key);
+  });
+  try{
+    if(acc.length)save();
+    await api('checklist/'+c.id+'/decide','POST',{accepted:acc,rejected:rej,action:action==='reopen'?'reopen':action==='close'?'close':'accept'});
+    toast(action==='reopen'?'Возвращено мастеру':action==='close'?'Ссылка закрыта':'Записи приняты');
+    await refreshInbox();INB=null;view='veh';tab='parts';render();
+  }catch(e){toast(e.message,1)}
+}
+function linksDialog(v){
+  const l=INBOX.filter(c=>c.vehicleId===v.id).slice(0,8),sl={open:'ждёт мастера',done:'ответ получен',accepted:'принято',closed:'закрыта'};
+  if(!l.length)return dialog('Ссылки для мастера',[],()=>{},{ok:'Понятно',lead:'Ссылок пока нет. Они создаются при печати чек-листа с QR-кодом.'});
+  dialog('Ссылки для мастера',l.map((c,i)=>({n:'a'+i,l:`${dfmt(String(c.created).slice(0,10))}: ${sl[c.status]||c.status} (${c.done}/${c.total})`,w:1,opts:[['','—'],...(c.status==='done'?[['review','Открыть ответ мастера']]:[]),...(c.status==='open'||c.status==='done'?[['close','Закрыть ссылку']]:[])],v:''})),
+  x=>{l.forEach((c,i)=>{const a=x['a'+i];
+    if(a==='close')api('checklist/'+c.id+'/decide','POST',{action:'close'}).then(refreshInbox).then(()=>render()).catch(e=>toast(e.message,1));
+    if(a==='review')setTimeout(()=>openInbox(c.id),50)})});
+}
+async function adminDialog(){
+  let s;try{s=await api('admin/settings')}catch(e){return toast(e.message,1)}
+  dialog('Публичный адрес и доступ',[
+    {n:'url',l:'Публичный адрес приложения',w:1,v:s.publicUrl,p:'https://auto.example.com'},
+    {n:'redir',l:'Перенаправлять с локального адреса на публичный',w:1,opts:[['0','Выключено'],['1','Включено']],v:s.redirect?'1':'0'},
+    {n:'reg',l:'Регистрация новых пользователей',w:1,opts:[['0','Закрыта'],['1','Открыта']],v:s.regOpen?'1':'0'}],
+  x=>{
+    const body={publicUrl:x.url.trim(),redirect:x.redir==='1',regOpen:x.reg==='1'};
+    api('admin/settings','PUT',body).then(async r=>{ST.publicUrl=r.publicUrl;ST.redirect=body.redirect&&!!r.publicUrl;toast('Сохранено');
+      if(r.publicUrl&&!(await reachable(r.publicUrl)))toast('Адрес сохранён, но сейчас не открывается. Проверьте туннель.',1)}).catch(e=>toast(e.message,1));
+  },{lead:'Этот адрес попадает в QR-коды чек-листов. Если поменяете домен, укажите новый: старые напечатанные QR перестанут работать. Чтобы открыть приложение локально без перенаправления, добавьте ?local=1 к адресу.'});
+}
+const PUSH_DAYS=[['1,4','Пн и Чт'],['1','Только понедельник'],['1,3,5','Пн, Ср, Пт'],['1,2,3,4,5','Будни'],['0,1,2,3,4,5,6','Каждый день']];
+const b64=x=>{const p='='.repeat((4-x.length%4)%4),r=atob((x+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...r].map(c=>c.charCodeAt(0)))};
+async function pushEnable(){
+  if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)){toast('Это устройство не поддерживает push. На iPhone установите сайт на экран «Домой» (iOS 16.4 и новее).',1);return false}
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){toast('Разрешение на уведомления не выдано',1);return false}
+  try{
+    const reg=await Promise.race([navigator.serviceWorker.ready,new Promise((_,j)=>setTimeout(()=>j(new Error('sw')),6000))]),k=await api('push/key');
+    if(!k.enabled){toast('На сервере не установлен web-push. Перезапустите приложение.',1);return false}
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(k.publicKey)});
+    await api('push/subscribe','POST',{subscription:sub.toJSON(),tz:Intl.DateTimeFormat().resolvedOptions().timeZone});
+    return true;
+  }catch(e){toast(e.message==='sw'?'Service worker не запущен. Откройте сайт по https-адресу.':e.message,1);return false}
+}
+async function pushDisable(){
+  try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
+    if(sub){await api('push/unsubscribe','POST',{endpoint:sub.endpoint});await sub.unsubscribe()}toast('Отключено на этом устройстве')}catch(e){toast(e.message,1)}
+}
+async function pushDialog(){
+  let p;try{p=await api('push/prefs')}catch(e){return toast(e.message,1)}
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),sa=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  dialog('Уведомления',[
+    {n:'on',l:'Уведомления',w:1,opts:[['1','Включены'],['0','Выключены']],v:p.on?'1':'0'},
+    {n:'days',l:'Дни недели',w:1,opts:PUSH_DAYS,v:p.days},
+    {n:'hour',l:'Час отправки',w:1,opts:Array.from({length:17},(_,i)=>[String(i+6),(i+6)+':00']),v:String(p.hour)},
+    {n:'act',l:'Это устройство',w:1,opts:[['','Оставить как есть'],['on','Включить уведомления здесь'],['test','Отправить тестовое уведомление'],['off','Отключить здесь']],v:''}],
+  x=>{
+    api('push/prefs','PUT',{on:x.on==='1',days:x.days,hour:+x.hour,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}).catch(e=>toast(e.message,1));
+    if(x.act==='on')pushEnable().then(ok=>ok&&toast('Уведомления включены на этом устройстве'));
+    if(x.act==='test')api('push/test','POST').then(r=>toast(r.sent?'Тест отправлен':'Нет устройств с уведомлениями. Сначала включите их здесь.',!r.sent)).catch(e=>toast(e.message,1));
+    if(x.act==='off')pushDisable();
+  },{lead:'Дайджест приходит в выбранные дни, только если есть что напомнить: масло, свечи, ремень ГРМ, шины, страховка и техосмотр. Устройств с уведомлениями: '+p.devices+'.'+(ios&&!sa?' На iPhone сначала установите сайт на экран «Домой» и откройте его оттуда.':'')});
 }
 function convertUnit(v,to){
   const f=to==='mi'?0.621371:1.609344,c=n=>n==null?n:Math.round(n*f),r100=n=>n?Math.max(100,Math.round(n*f/100)*100):0;
@@ -658,14 +774,23 @@ const instDialog=()=>dialog('Установка на телефон',[],()=>{},{
 document.addEventListener('click',e=>{
   const t=e.target,v=V();
   if(t.closest('#rClose')){document.body.classList.remove('rep');return}
-  if(t.closest('#rPrint'))return window.print();
+  if(t.closest('#rPrint'))return RMODE==='check'&&RQR&&!RCKL?printChecklist():window.print();
   const rl=t.closest('[data-rl]');if(rl){RL=rl.dataset.rl;return renderReport()}
   if(t.closest('#repBtn')){RMODE='doc';RL=LANG;document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
-  if(t.closest('#chkBtn')){RMODE='check';RL=LANG;RX=new Set();RADD=new Set();RCUS=[];document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
+  if(t.closest('#chkBtn')){RMODE='check';RL=LANG;RCKL=null;RX=new Set();RADD=new Set();RCUS=[];document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
   if(t.closest('#homeSet')){homeSet=!homeSet;return render()}
   if(t.closest('#logout')){api('auth/logout','POST').catch(()=>{}).finally(()=>location.reload());return}
   if(t.closest('#dbBtn'))return showSetup(null,true);
   if(t.closest('#instBtn'))return instDialog();
+  if(t.closest('#admBtn'))return adminDialog();
+  if(t.closest('#pushBtn'))return pushDialog();
+  if(t.closest('#linksBtn')&&v)return linksDialog(v);
+  const ib=t.closest('[data-inbox]');if(ib)return openInbox(ib.dataset.inbox);
+  const lx=t.closest('[data-lbx]');if(lx)return lightbox(lx.dataset.lbx.split(','),0);
+  if(t.closest('#inbBack')){INB=null;view='veh';tab='parts';return render()}
+  if(t.closest('#inbAccept'))return inbDecide('accept');
+  if(t.closest('#inbReopen'))return inbDecide('reopen');
+  if(t.closest('#inbClose'))return inbDecide('close');
   const lb=t.closest('[data-lb]');if(lb){const el=$('lb'),ids=(el.dataset.ids||'').split(',');if(lb.dataset.lb==='0'){el.hidden=true;el.innerHTML=''}else lightbox(ids,(+el.dataset.i)+(+lb.dataset.lb));return}
   if(t.id==='lb'){t.hidden=true;t.innerHTML='';return}
   const qk=t.closest('[data-quick]');if(qk){S.cur=qk.dataset.quick;view='veh';tab='parts';save();render();return dayDialog(V())}
@@ -724,7 +849,7 @@ document.addEventListener('click',e=>{
     S.v=S.v.filter(x=>x!==v);S.cur=S.v[0]?.id||null;view='home';save();render();
   }
 });
-let RL='ru',RALL=false,RMODE='doc',RSOON=true,RNONE=false,RNOTE='',RX=new Set(),RADD=new Set(),RCUS=[];
+let RL='ru',RALL=false,RMODE='doc',RSOON=true,RNONE=false,RNOTE='',RX=new Set(),RADD=new Set(),RCUS=[],RQR=true,RCKL=null,CKSNAP=[],INBOX=[],INB=null;
 const LOC={ru:'ru-RU',en:'en-GB',uk:'uk-UA',ja:'ja-JP'};
 function rctx(v,L){
   const t={...RT[L]};if(WATER.has(v.type))t.km=t.h;else if(v.unit==='mi')t.km=UNITMI[L];
@@ -735,16 +860,33 @@ document.addEventListener('change',e=>{const i=e.target.id;
   if(i==='rAll'){RALL=e.target.checked;renderReport()}
   if(i==='rSoon'){RSOON=e.target.checked;renderReport()}
   if(i==='rNone'){RNONE=e.target.checked;renderReport()}
+  if(i==='rQr'){RQR=e.target.checked;renderReport()}
   if(i==='rAdd'&&e.target.value){RADD.add(e.target.value);RX.delete(e.target.value);renderReport()}
   if(i==='langSel'){saveLang(e.target.value);(ME?api('auth/lang','POST',{lang:e.target.value}).catch(()=>{}):Promise.resolve()).finally(()=>location.reload())}
 });
 document.addEventListener('input',e=>{if(e.target.id==='rNote'){RNOTE=e.target.value;const n=$('cNote');if(n)n.textContent=RNOTE}});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='rCus'){e.preventDefault();$('rCusBtn').click()}});
+const plain=x=>String(x).replace(/<br>/g,' · ').replace(/<div[^>]*>/g,' · ').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&amp;/g,'&').trim();
+function snapAdd(it,kind,why,prev,L){
+  CKSNAP.push({key:it.id,name:it.name,cat:it.cat,kind,why:plain(why),prev:plain(prev),ex:exKeys(it).map(k=>({k,label:L==='ja'?EX[k][1]:(L==='en'||L==='uk')?EXL[k][L]:EX[k][0],ph:EX[k][2]}))});
+}
+const qrBlock=c=>`<div class="qrbox">${QR.svg(RCKL.url,120)}<div><b>${c.qrTitle}</b><div>${c.qrHint}</div><div class="pin">${c.pin}: <b>${RCKL.pin}</b></div><div class="qurl">${esc(RCKL.url.replace(/^https?:\/\//,''))}</div></div></div>`;
+async function printChecklist(){
+  const v=V();
+  try{
+    const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:RNOTE,date:today(),items:CKSNAP};
+    const r=await api('checklist','POST',{vehicleId:v.id,lang:RL,snapshot});
+    const base=r.publicUrl||ST.publicUrl||location.origin;
+    RCKL={token:r.token,pin:r.pin,url:base+'/m/'+r.token};
+    if(!r.publicUrl)toast('Публичный адрес не задан: QR откроется только в вашей сети',1);
+    renderReport(true);setTimeout(()=>window.print(),350);
+  }catch(e){toast(e.message,1);window.print()}
+}
 function toolbar(){
   const c=RMODE==='check',v=V();
   return `<div class="rtool"><button data-rm="doc" class="${c?'':'p'}">Отчёт</button><button data-rm="check" class="${c?'p':''}">Чек-лист для мастерской</button>
   ${LANGS.map(([k,n])=>`<button data-rl="${k}" class="${RL===k?'p':''}">${n}</button>`).join('')}
-  ${c?`<label><input type="checkbox" id="rSoon" ${RSOON?'checked':''}> Добавить «не обязательно» (осталось до 10%)</label><label><input type="checkbox" id="rNone" ${RNONE?'checked':''}> Позиции без данных о замене</label>
+  ${c?`<label><input type="checkbox" id="rSoon" ${RSOON?'checked':''}> Добавить «не обязательно» (осталось до 10%)</label><label><input type="checkbox" id="rNone" ${RNONE?'checked':''}> Позиции без данных о замене</label><label><input type="checkbox" id="rQr" ${RQR?'checked':''}> QR-код для мастера</label>
   <select id="rAdd"><option value="">— добавить из списка —</option>${v.items.map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join('')}</select>
   <input id="rCus" class="rnote" style="flex:1 1 130px" placeholder="Свой пункт"><button id="rCusBtn">Добавить</button>${(RX.size||RADD.size||RCUS.length)?'<button id="rReset">Вернуть скрытые</button>':''}
   <input id="rNote" class="rnote" placeholder="Пожелания мастеру (печатаются в листе)" value="${esc(RNOTE)}">`
@@ -754,6 +896,7 @@ function toolbar(){
 const wrapDoc=html=>`<table class="pg"><thead><tr><td></td></tr></thead><tbody><tr><td class="repdoc" translate="no">${html}</td></tr></tbody><tfoot><tr><td></td></tr></tfoot></table>`;
 function renderCheck(v){
   const L=RL,{t,isW,nf,df,tr}=rctx(v,L),c=CK[L],fu=n=>nf(n)+' '+t.km;
+  CKSNAP=[];
   const iv=it=>{const X=ext(it);return[it.km?fu(it.km+X.km):'',it.mo?(it.mo+X.mo)+' '+t.mo:''].filter(Boolean).join(' / ')||t.cond};
   const why=it=>{
     const X=ext(it),a=[];
@@ -774,19 +917,20 @@ function renderCheck(v){
   const extra=[...RADD].filter(id=>!inList.has(id)&&!RX.has(id)).map(id=>v.items.find(i=>i.id===id)).filter(Boolean).map(it=>({it}));
   const prevOf=it=>{const h=H(it),e=h[h.length-1];return e?df(e.d)+(e.km!=null?', '+fu(e.km):'')+(detStr(e.x,L)?`<div class="det">${esc(detStr(e.x,L))}</div>`:''):'—'};
   const rmt=trStr('Убрать из листа');
-  const row=(it,kind,why2)=>`<tr class="${kind==='opt'||kind==='extra'?'opt':''}"><td class="cb"><span class="box"></span><button class="rx" data-rx="${it.id}" title="${rmt}">✕</button></td><td>${esc(tr(it.name))}<span class="tag ${kind==='must'?'must':''}">${{must:c.tagM,opt:c.tagO,nod:c.tagN,extra:c.tagE}[kind]}</span><div class="sub">${esc(tr(it.cat))}</div></td><td>${why2}</td><td>${prevOf(it)}</td><td class="blank"></td></tr>`;
+  const row=(it,kind,why2)=>{snapAdd(it,kind,why2,prevOf(it),L);return `<tr class="${kind==='opt'||kind==='extra'?'opt':''}"><td class="cb"><span class="box"></span><button class="rx" data-rx="${it.id}" title="${rmt}">✕</button></td><td>${esc(tr(it.name))}<span class="tag ${kind==='must'?'must':''}">${{must:c.tagM,opt:c.tagO,nod:c.tagN,extra:c.tagE}[kind]}</span><div class="sub">${esc(tr(it.cat))}</div></td><td>${why2}</td><td>${prevOf(it)}</td><td class="blank"></td></tr>`};
   const table=(title,rows)=>rows?`<h2>${title}</h2><table><tr><th></th><th>${c.work}</th><th>${c.why}</th><th>${c.prev}</th><th>${c.mech}</th></tr>${rows}</table>`:'';
-  const cus=RCUS.map(x=>`<tr><td class="cb"><span class="box"></span><button class="rx" data-rxc="${x.id}" title="${rmt}">✕</button></td><td colspan="3">${esc(x.text)}<span class="tag">${c.tagE}</span></td><td class="blank"></td></tr>`).join('');
+  const cus=RCUS.map(x=>{CKSNAP.push({key:'c'+x.id,name:x.text,cat:'',kind:'custom',why:'',prev:'',ex:[]});return `<tr><td class="cb"><span class="box"></span><button class="rx" data-rxc="${x.id}" title="${rmt}">✕</button></td><td colspan="3">${esc(x.text)}<span class="tag">${c.tagE}</span></td><td class="blank"></td></tr>`}).join('');
   const body=table(c.must,must.map(({it})=>row(it,'must',why(it))).join(''))+table(c.opt,opt.map(({it})=>row(it,'opt',why(it))).join(''))+table(c.nod,nod.map(({it})=>row(it,'nod',c.nd(iv(it)))).join(''))+table(c.tagE.charAt(0).toUpperCase()+c.tagE.slice(1),extra.map(({it})=>row(it,'extra',why(it))).join('')+cus);
   $('rep').lang=L;
-  $('rep').innerHTML=toolbar()+wrapDoc(`<h1>${c.title}</h1>
+  $('rep').innerHTML=toolbar()+wrapDoc(`${RCKL?qrBlock(c):''}<h1>${c.title}</h1>
   <table class="kv"><tr><td>${c.veh}</td><td>${esc(v.name)}, ${t.types[v.type]||''}</td></tr>
   <tr><td>${c.mil}</td><td>${fu(v.odo)}${v.off?` (${c.panel}: ${fu(v.odo-v.off)})`:''}</td></tr>
   <tr><td>${c.date}</td><td>${df(today())}</td></tr></table>
   <h2>${c.wish}</h2><div class="cnote" id="cNote">${esc(RNOTE)}</div>
   ${body||`<p>${c.none}</p>`}`);
 }
-function renderReport(){
+function renderReport(keep){
+  if(!keep)RCKL=null;
   const v=V();if(!v)return;
   if(RMODE==='check')return renderCheck(v);
   const L=RL,{t,nf,df,tr}=rctx(v,L),fu=n=>nf(n)+' '+t.km;
@@ -826,7 +970,9 @@ $('file').onchange=e=>{
   r.readAsText(f);e.target.value='';
 };
 
-let ME=null,bootGen=0;
+let ME=null,bootGen=0,ST={};
+const reachable=u=>Promise.race([fetch(u+'/api/health',{mode:'no-cors',cache:'no-store'}).then(()=>true,()=>false),new Promise(r=>setTimeout(()=>r(false),3500))]);
+async function refreshInbox(){try{INBOX=await api('checklists')}catch(e){}}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(p,method='GET',body){
   const r=await fetch('api/'+p,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
@@ -839,13 +985,19 @@ async function loadState(){
   if(ME&&!ME.lang)api('auth/lang','POST',{lang:LANG}).catch(()=>{});
   const x=await api('state');S=x&&Array.isArray(x.v)?x:{cur:null,v:[]};
   const bad=S.v.some(v=>v.cc&&(/\d/.test(v.cc)||String(v.cc).trim().length>4));
-  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Ок');render();
+  S.v.forEach(ensure);loaded=true;if(bad)save();view='home';setSync('Ок');await refreshInbox();render();
+  if(location.hash==='#inbox'){const d=INBOX.find(x=>x.status==='done');history.replaceState(null,'',location.pathname);if(d)openInbox(d.id)}
   if(location.hash==='#day'&&V()){S.cur=V().id;view='veh';tab='parts';render();history.replaceState(null,'',location.pathname);dayDialog(V())}
 }
 async function boot(){
   const g=++bootGen;let st=null;
   for(let i=0;i<15&&!st;i++){try{st=await api('status')}catch(e){$('main').innerHTML='<div class="empty">Подключаюсь к приложению…</div>';await sleep(2000)}}
   if(!st){$('main').innerHTML='<div class="empty">Не удалось связаться с сервером.<br><br><button class="p" onclick="location.reload()">Повторить</button></div>';return}
+  ST=st;
+  if(st.redirect&&st.publicUrl&&location.origin!==st.publicUrl&&!/[?&]local=1/.test(location.search)){
+    if(await reachable(st.publicUrl)){location.replace(st.publicUrl+location.pathname+location.search+location.hash);return}
+    toast('Публичный адрес недоступен, остаёмся на локальном',1);
+  }
   if(!st.ready){
     if(st.configured&&st.connecting){
       $('main').innerHTML=`<div class="auth card"><h1>Подключаюсь к базе…</h1><p class="meta">${esc(st.current.host)}:${st.current.port}, база «${esc(st.current.database)}». При первом запуске MySQL стартует до минуты.</p>${st.error?`<p class="msg bad">${esc(st.error)}</p>`:''}<div class="btnr"><button id="sChange">Изменить настройки базы</button></div></div>`;
@@ -889,7 +1041,7 @@ function showAuth(st,mode){
   <p class="meta">${!st.hasUsers?'Этот пользователь станет администратором. У каждого пользователя свой транспорт и свои записи.':reg?'У каждого пользователя свой транспорт и свои записи.':'Войдите в свой аккаунт.'}</p>
   <div class="form"><label>Логин<input id="aL" autocomplete="username"></label><label>Пароль<input id="aP" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>${reg?'<label>Повторите пароль<input id="aP2" type="password" autocomplete="new-password"></label>':''}</div>
   <div class="msg bad" id="aM"></div>
-  <div class="btnr"><button class="p" id="aGo">${reg?'Создать аккаунт':'Войти'}</button>${st.hasUsers?`<button id="aSw">${reg?'У меня есть аккаунт':'Регистрация'}</button>`:''}</div></div>`;
+  <div class="btnr"><button class="p" id="aGo">${reg?'Создать аккаунт':'Войти'}</button>${(st.hasUsers&&st.regOpen)?`<button id="aSw">${reg?'У меня есть аккаунт':'Регистрация'}</button>`:''}</div></div>`;
   const go=async()=>{
     const l=$('aL').value.trim(),p=$('aP').value;
     if(reg&&p!==$('aP2').value){$('aM').textContent='Пароли не совпадают';return}
@@ -897,10 +1049,11 @@ function showAuth(st,mode){
   };
   $('aGo').onclick=go;
   ['aL','aP','aP2'].forEach(i=>{const el=$(i);if(el)el.onkeydown=ev=>{if(ev.key==='Enter')go()}});
-  if(st.hasUsers)$('aSw').onclick=()=>showAuth(st,reg?'login':'reg');
+  if(st.hasUsers&&st.regOpen)$('aSw').onclick=()=>showAuth(st,reg?'login':'reg');
   $('aL').focus();
 }
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+setInterval(async()=>{if(!loaded||document.hidden||$('dlg').open||view==='inbox')return;const n=INBOX.filter(x=>x.status==='done').length;await refreshInbox();if(INBOX.filter(x=>x.status==='done').length!==n&&(view==='home'||view==='veh'))render()},60000);
 boot();
 </script>
 </body>

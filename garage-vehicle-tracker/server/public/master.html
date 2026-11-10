@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1f5f7a">
+<title>Garage Journal</title>
+<script src="/i18n.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:#e8ecef;--panel:#f6f8f9;--ink:#1b2733;--mute:#5d6b78;--line:#cfd7dd;--acc:#1f5f7a;--ok:#2e7d4f;--soon:#b87b00;--bad:#b3341f;--onacc:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#141b21;--panel:#1d262e;--ink:#e4eaee;--mute:#93a1ad;--line:#2f3b45;--acc:#5fb0cf;--ok:#5cc08a;--soon:#e0aa3a;--bad:#ee7a63;--onacc:#0c1419}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,"Segoe UI","Hiragino Sans",sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:14px 12px 80px}
+h1{font-size:22px;margin:4px 0}h2{font-size:15px;margin:18px 0 6px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+select,input,textarea,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+button{cursor:pointer;width:auto;background:var(--panel)}button.p{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
+.card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.card.must{border-left-color:var(--bad)}.card.opt,.card.extra,.card.custom{border-left-color:var(--soon)}.card.nod{border-left-color:var(--mute)}
+.hd{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.hd b{font-size:17px}
+.tag{font-size:11px;border:1px solid var(--mute);border-radius:9px;padding:0 7px;white-space:nowrap}.tag.must{border-color:var(--bad);color:var(--bad)}
+small,.meta{color:var(--mute);font-size:13px}.why{margin-top:6px;font-size:14px}.rej{margin-top:6px;color:var(--bad);font-weight:600;font-size:14px}
+.seg{display:flex;gap:8px;margin:10px 0}.seg button{flex:1;padding:12px}.seg button.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}.form .w{grid-column:1/-1}.card[data-s=skip] .dn{display:none}
+.row{display:flex;gap:10px;align-items:center;margin-top:6px}.ok{color:var(--ok);font-weight:700}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.msg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-top:40px;text-align:center}
+.pin{font-size:32px;letter-spacing:.4em;text-align:center}
+.err{color:var(--bad);min-height:20px;margin:6px 0;font-size:14px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s}.toast.show{opacity:1}
+.note{border:1px dashed var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="toast" class="toast" role="status"></div>
+<script>
+startI18n();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const TOKEN=location.pathname.split('/')[2]||'',today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+let PIN='',SNAP=null,ENT={},STATUS='',tt;
+const toast=m=>{const e=$('toast');e.textContent=trStr(m);e.className='toast show';clearTimeout(tt);tt=setTimeout(()=>e.className='toast',3200)};
+async function call(path,body,raw,hdr){
+  const r=await fetch('/api/m/'+TOKEN+'/'+path,{method:body||raw?'POST':'GET',headers:Object.assign(body?{'Content-Type':'application/json'}:{},hdr||{}),body:raw||(body?JSON.stringify(body):undefined)});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error(j.error||'Не удалось сохранить. Проверьте связь.');e.left=j.left;throw e}
+  return j;
+}
+async function shrink(file){
+  try{const b=await createImageBitmap(file),k=Math.min(1,1600/Math.max(b.width,b.height)),c=document.createElement('canvas');
+    c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(x=>r(x||file),'image/jpeg',.82))}catch(e){return file}
+}
+const langSel=()=>`<select id="lg" style="width:auto" aria-label="Language">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select>`;
+function bindLang(){const s=$('lg');if(s)s.onchange=()=>{LANG=s.value;SNAP?render():showPin()}}
+function showMsg(t){$('app').innerHTML=`<div class="top"><h1>Garage Journal</h1>${langSel()}</div><div class="msg">${t}</div>`;bindLang()}
+function showPin(err){
+  $('app').innerHTML=`<div class="top"><h1>Чек-лист для мастера</h1>${langSel()}</div>
+  <div class="msg"><p>Введите PIN-код с листа</p><input class="pin" id="pin" inputmode="numeric" maxlength="4" autocomplete="off" autofocus>
+  <div class="err" id="err">${err?esc(trStr(err)):''}</div><button class="p" id="go" style="width:100%">Открыть</button></div>`;
+  bindLang();const go=async()=>{PIN=$('pin').value.trim();if(PIN.length!==4)return;try{await load()}catch(e){showPin(e.message)}};
+  $('go').onclick=go;$('pin').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+async function load(){
+  const r=await call('open',{pin:PIN});
+  if(r.status==='closed')return showMsg('Ссылка закрыта владельцем.');
+  if(r.status==='accepted')return showMsg('Работа принята владельцем. Спасибо!');
+  SNAP=r.snapshot;ENT=r.entries||{};STATUS=r.status;if(SNAP.lang)LANG=SNAP.lang;render();
+}
+const unit=()=>({km:RT[LANG].km,mi:UNITMI[LANG],h:RT[LANG].h})[SNAP.vehicle.unit]||'km';
+function card(it){
+  const e=ENT[it.key]||{},st=e.state||'',c=CK[LANG],tag={must:'tagM',opt:'tagO',nod:'tagN',extra:'tagE',custom:'tagE'}[it.kind];
+  const ro=STATUS!=='open';
+  const ex=(it.ex||[]).map(x=>`<label>${esc(x.label)}<input data-x="${x.k}" value="${esc((e.x||{})[x.k]||'')}" placeholder="${esc(x.ph||'')}"></label>`).join('');
+  return `<div class="card ${it.kind}" id="c_${it.key}" data-s="${st}">
+  <div class="hd"><b>${esc(trName(it.name,LANG))}</b><span class="tag ${it.kind==='must'?'must':''}">${c[tag]||''}</span></div>
+  <small>${esc(trName(it.cat,LANG))}</small>
+  ${it.why?`<div class="why">${esc(it.why)}</div>`:''}${it.prev?`<div class="meta">Прошлая замена: ${esc(it.prev)}</div>`:''}
+  ${e.review==='rejected'?`<div class="rej">Владелец вернул: ${esc(e.ownerNote||'')}</div>`:''}
+  <div class="seg"><button class="${st==='done'?'on':''}" data-st="${it.key}|done" ${ro?'disabled':''}>Сделано</button><button class="${st==='skip'?'on':''}" data-st="${it.key}|skip" ${ro?'disabled':''}>Не делал</button></div>
+  <div class="form" ${st?'':'hidden'}>
+   <label class="dn">Дата<input name="date" type="date" value="${esc(e.date||today())}"></label>
+   <label class="dn">Пробег<input name="km" type="number" inputmode="numeric" value="${e.km!=null?e.km:SNAP.vehicle.odo}"> </label>
+   <label class="dn w">Стоимость, ${esc(SNAP.vehicle.cc||'')}<input name="cost" type="number" inputmode="decimal" value="${e.cost!=null?e.cost:''}"></label>
+   <div class="dn w form" style="margin:0">${ex}</div>
+   <label class="w">Комментарий<textarea name="note" rows="2">${esc(e.note||'')}</textarea></label>
+   <label class="dn w">Фото<input name="ph" type="file" accept="image/*" multiple></label>
+   <div class="thumbs w" data-ph="${(e.ph||[]).join(',')}"></div>
+   <div class="row w"><button class="p" data-save="${it.key}" ${ro?'disabled':''}>Сохранить</button><span class="ok">${e.state?'✓':''}</span></div>
+  </div></div>`;
+}
+function render(){
+  const v=SNAP.vehicle,c=CK[LANG],items=SNAP.items||[];
+  const block=(kind,title)=>{const l=items.filter(i=>kind.includes(i.kind));return l.length?`<h2>${title}</h2>`+l.map(card).join(''):''};
+  $('app').innerHTML=`<div class="top"><h1>${c.title}</h1>${langSel()}</div>
+  <div class="meta">${esc(v.name)} · ${c.mil}: ${Number(v.odo).toLocaleString()} ${unit()}</div>
+  ${SNAP.note?`<h2>${c.wish}</h2><div class="note">${esc(SNAP.note)}</div>`:''}
+  <p class="meta">${STATUS==='open'?'Отметьте результат по каждой позиции и нажмите «Сохранить». Когда всё готово, нажмите «Работа окончена»: владелец проверит и подтвердит.':'Отправлено владельцу. Ждёт подтверждения.'}</p>
+  ${block(['must'],c.must)}${block(['opt'],c.opt)}${block(['nod'],c.nod)}${block(['extra','custom'],c.tagE)}
+  ${STATUS==='open'?'<div style="margin-top:18px"><button class="p" id="fin" style="width:100%;padding:14px">Работа окончена</button></div>':''}`;
+  bindLang();wire();thumbs();
+}
+function wire(){
+  document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{
+    const [k,s]=b.dataset.st.split('|'),c=$('c_'+k);c.dataset.s=s;
+    c.querySelectorAll('[data-st]').forEach(x=>x.classList.toggle('on',x===b));c.querySelector('.form').hidden=false;
+  });
+  document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>save(b.dataset.save,b));
+  const f=$('fin');if(f)f.onclick=async()=>{
+    if(!confirm('Завершить работу и отправить владельцу?'))return;
+    try{await call('finish',{pin:PIN});STATUS='done';render();window.scrollTo(0,0)}catch(e){toast(e.message)}
+  };
+}
+async function thumbs(){
+  for(const box of document.querySelectorAll('.thumbs[data-ph]')){
+    for(const id of (box.dataset.ph||'').split(',').filter(Boolean)){
+      try{const r=await fetch(`/api/m/${TOKEN}/photo/${id}`,{headers:{'X-Pin':PIN}});if(!r.ok)continue;
+        const i=document.createElement('img');i.src=URL.createObjectURL(await r.blob());box.appendChild(i)}catch(e){}
+    }
+  }
+}
+async function save(key,btn){
+  const c=$('c_'+key),g=n=>c.querySelector('[name='+n+']'),old=ENT[key]||{};
+  const e={state:c.dataset.s,date:g('date').value,km:g('km').value,cost:g('cost').value,note:g('note').value,x:{},ph:(old.ph||[]).slice()};
+  if(!e.state)return toast('Выберите: «Сделано» или «Не делал»');
+  c.querySelectorAll('[data-x]').forEach(i=>{if(i.value.trim())e.x[i.dataset.x]=i.value.trim()});
+  btn.disabled=true;
+  try{
+    for(const f of [...g('ph').files]){
+      const b=await shrink(f),r=await fetch(`/api/m/${TOKEN}/photo`,{method:'POST',headers:{'Content-Type':b.type||'image/jpeg','X-Pin':PIN},body:b});
+      const j=await r.json();if(!r.ok)throw new Error(j.error);e.ph.push(j.id);
+    }
+    await call('entry',{pin:PIN,key,entry:e});
+    ENT[key]=Object.assign({},e,{review:'pending'});
+    const it=SNAP.items.find(i=>i.key===key);c.outerHTML=card(it);wire();thumbs();toast('Сохранено');
+  }catch(err){btn.disabled=false;toast(err.message)}
+}
+showPin();
+</script>
+</body>
+</html>

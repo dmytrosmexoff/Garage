@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "main": "server.js",
-  "dependencies": { "mysql2": "^3.11.0" }
+  "dependencies": {
+    "mysql2": "^3.11.0",
+    "web-push": "^3.6.7"
+  }
 }
