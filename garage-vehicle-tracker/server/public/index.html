@@ -166,11 +166,18 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 @media (prefers-color-scheme:dark){.promo{background:#3a2d12;color:#ffe7b3}}
 .promo .btnr{flex-wrap:wrap}
 .small{font-size:12px;color:var(--mute);margin-top:8px}
+.ml{font-size:12px;color:var(--mute);margin-bottom:4px}.multi{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}.mc{flex-direction:row;align-items:center;gap:5px;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px}.mc input{width:auto}
 #sysbar{position:fixed;top:8px;left:8px;right:8px;z-index:70;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .sysm{pointer-events:auto;display:flex;gap:8px;align-items:flex-start;background:#3b2a0a;color:#ffe9b0;border:1px solid #d79a1e;border-radius:10px;padding:9px 12px;font-size:13.5px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .sysm.bad{background:#3a1410;color:#ffd6cc;border-color:var(--bad)}
 .sysm b{white-space:nowrap}.sysm span{flex:1}.sysm button{background:none;border:0;color:inherit;font-size:18px;padding:0 4px;width:auto;line-height:1}
 .acts .gear.ce{color:#d79a1e;padding:3px 6px}.ce svg{width:26px;height:26px;display:block}
+#reqbar{position:fixed;left:8px;right:8px;bottom:8px;z-index:68;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#reqbar:empty{display:none}
+.rq{pointer-events:auto;display:block;width:100%;text-align:left;border:0;border-radius:10px;padding:11px 14px;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.rq.free{background:#ffd54a;color:#3a2a00}.rq.paid{background:#c0392b;color:#fff}
+.qrb{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.qrb svg{width:16px;height:16px;flex:none}
 @media print{.sync,.toast,.rtool,.rx{display:none!important}#rep{padding:0;max-width:none}@page{size:A4;margin:0}
 #rep .pg thead{display:table-header-group}#rep .pg tfoot{display:table-footer-group}
 #rep .pg thead td,#rep .pg tfoot td{height:13mm;padding:0;border:0}#rep .pg>tbody>tr>td{padding:0 14mm}}
@@ -194,6 +201,7 @@ details.adv{margin-top:26px}details.adv summary{cursor:pointer;color:var(--mute)
 <div id="sync" class="sync"></div>
 <div id="lb" hidden></div>
 <div id="sysbar"></div>
+<div id="reqbar"></div>
 
 <script>
 startI18n();
@@ -271,6 +279,11 @@ const ensure=v=>{if(!v.log||!v.log.length)v.log=[{d:yday(),odo:v.odo||0,trip:nul
 S.v.forEach(ensure);
 
 function build(type,unit){
+  const out=build0(type,unit);
+  CATALOG.filter(c=>c.vtype===type).forEach(c=>out.push({id:uid(),cat:c.cat,name:c.names.ru,km:unit==='mi'&&!WATER.has(type)?Math.round(c.km*0.621371/100)*100:c.km,mo:c.mo,lastKm:null,lastDate:null,note:''}));
+  return out;
+}
+function build0(type,unit){
   const out=[];
   for(const cat in TPL[type]||{})TPL[type][cat].split(';').forEach(s=>{const p=s.split('|');out.push({id:uid(),cat,name:p[0],km:unit==='mi'&&!WATER.has(type)?Math.round(+p[1]*0.621371/100)*100:+p[1],mo:+p[2],lastKm:null,lastDate:null,note:''})});
   return out;
@@ -382,7 +395,7 @@ function promoBanner(){
   return '';
 }
 function accPanel(){return `<div class="panel"><label class="lang">Язык<select id="langSel">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></label><button id="exp">Экспорт данных</button><button id="imp">Импорт данных</button>${deferredPrompt?'<button id="installBtn">Установить приложение</button>':''}<button id="pushBtn">Уведомления</button><button id="logout">Выйти</button><span class="meta">Экспорт и импорт: резервная копия всего вашего транспорта в файле JSON</span></div>`}
-function admPanel(){return `<div class="panel"><button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button><span class="meta">Видны только администратору. Системные оповещения не пропадают сами, их можно закрыть крестиком.</span></div>`}
+function admPanel(){return `<div class="panel"><button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button><button id="admItemsBtn">Пункты для транспорта</button><span class="meta">Видны только администратору. Системные оповещения не пропадают сами, их можно закрыть крестиком.</span></div>`}
 function renderHome(){
   WATERCTX=false;MILECTX=false;
   const cnt=k=>S.v.filter(v=>v.type===k).length,list=S.v.filter(v=>!homeType||v.type===homeType);
@@ -437,7 +450,7 @@ function partsHtml(v){
       <div class="acts"><button class="gear ce" data-a="chk" data-id="${it.id}" title="Проверено" aria-label="Проверено">${CE_ICON}</button><button class="p" data-a="done" data-id="${it.id}">Заменил</button>${phn?`<button class="gear" data-ph="${it.id}" title="Фото">📷 ${phn}</button>`:''}<button class="gear" data-a="gear" data-id="${it.id}" title="Настройки позиции" aria-label="Настройки позиции">⚙</button></div></div>`}).join('');
   }
   return `${mileBar(v)}
-  <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}<span class="sp"></span><button id="chkBtn">Чек-лист для мастерской</button></div>
+  <div class="sum">${chips.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]}<b>${c[2]}</b></button>`).join('')}<span class="sp"></span><button id="chkBtn">Чек-лист для мастерской</button><button id="qrBtn" class="qrb" title="QR-лист">${QR_ICON}QR-лист</button></div>
   ${list||'<div class="empty">Здесь пока ничего нет</div>'}
   `;
 }
@@ -461,6 +474,7 @@ const setHtml=v=>`<div class="setrow"><div><b>Данные транспорта<
   <div class="setrow"><div><b>Чек-лист для мастерской</b><span>Лист для печати: что просрочено и что скоро, с пометкой «не обязательно»</span></div><button id="chkBtn">Открыть чек-лист</button></div>
   <div class="setrow"><div><b>Отчёт для печати</b><span>На выбранном языке: история замен, стоимость, комментарии</span></div><button id="repBtn">Открыть отчёт</button></div>
   <div class="setrow"><div><b>Ссылки для мастера</b><span>QR-коды чек-листов: закрыть ссылку или открыть ответ</span></div><button id="linksBtn">Открыть</button></div>
+  <div class="setrow"><div><b>Данные для мастера</b><span>Госномер, номер рамы, объём и дату техосмотра мастер увидит после ввода PIN</span></div><button id="vdBtn">Изменить</button></div>
   <div class="setrow"><div><b>Удалить транспорт</b><span>Вместе со всеми отметками и пробегом</span></div><button class="danger" id="delV">Удалить</button></div>
   <details class="adv"><summary>Дополнительно</summary>
   <div class="setrow"><div><b>Замена приборной панели</b><span>Если новая панель показывает 0, пробег продолжит считаться правильно.</span>${(v.panels||[]).map(p=>`<span>${dfmt(p.d)}: старая ${fmt(p.old)} км, новая ${fmt(p.nw)} км</span>`).join('')}</div><button id="panelBtn">Панель заменена</button></div></details>`;
@@ -506,19 +520,20 @@ function initChart(){
   sv.onpointercancel=e=>{pts.delete(e.pointerId);pin=0};
   sv.onwheel=e=>{e.preventDefault();zoomBy(e.deltaY>0?1.25:.8,geo(e).fr)};
 }
-function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}}
+function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}renderReqBar()}
 
 let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
   $('dOk').textContent=o.ok||'Сохранить';$('dTitle').textContent=title;$('dLead').textContent=o.lead||'';$('dSmall').textContent=o.small||'';$('dErr').textContent='';
   $('dBody').innerHTML=fields.map(f=>{
     if(f.sep)return `<h4>${esc(f.sep)}</h4>`;
+    if(f.multi)return `<div class="w"><div class="ml">${esc(f.l||'')}</div><div class="multi">${f.multi.map(([val,lab])=>`<label class="mc"><input type="checkbox" name="f_${f.n}" value="${val}" ${(String(f.v||'')).split(',').includes(val)?'checked':''}>${esc(lab)}</label>`).join('')}</div></div>`;
     if(f.file)return `<label class="w">${f.l}<input id="f_${f.n}" type="file" accept="image/*" multiple></label>`;
     const c=f.opts?`<select id="f_${f.n}">${f.opts.map(p=>`<option value="${p[0]}" ${p[0]===f.v?'selected':''}>${esc(p[1])}</option>`).join('')}</select>`
       :`<input id="f_${f.n}" type="${f.t||'text'}" value="${esc(f.v??'')}" placeholder="${esc(f.p||'')}" ${f.t==='number'?'min="0" inputmode="numeric"':''}>`;
     return `<label class="${f.w?'w':''}">${f.l}${c}</label>`}).join('');
   lock=!!o.lock;$('dCancel').hidden=lock;
-  onOk=()=>{const v={};fields.forEach(f=>{if(!f.sep)v[f.n]=$('f_'+f.n).value});const r=ok(v);if(typeof r==='string'){$('dErr').textContent=r;return}$('dlg').close()};
+  onOk=()=>{const v={};fields.forEach(f=>{if(f.sep)return;v[f.n]=f.multi?[...document.querySelectorAll('[name="f_'+f.n+'"]:checked')].map(x=>x.value).join(','):$('f_'+f.n).value});const r=ok(v);if(typeof r==='string'){$('dErr').textContent=r;return}$('dlg').close()};
   $('dlg').showModal();if(o.after)o.after();
 }
 $('dlg').addEventListener('cancel',e=>{if(lock)e.preventDefault()});
@@ -706,10 +721,10 @@ async function inbDecide(action){
 function linksDialog(v){
   const l=INBOX.filter(c=>c.vehicleId===v.id).slice(0,8),sl={open:'ждёт мастера',done:'ответ получен',accepted:'принято',closed:'закрыта'};
   if(!l.length)return dialog('Ссылки для мастера',[],()=>{},{ok:'Понятно',lead:'Ссылок пока нет. Они создаются при печати чек-листа с QR-кодом.'});
-  dialog('Ссылки для мастера',l.map((c,i)=>({n:'a'+i,l:`${dfmt(String(c.created).slice(0,10))}: ${sl[c.status]||c.status} (${c.done}/${c.total})`,w:1,opts:[['','—'],...(c.status==='done'?[['review','Открыть ответ мастера']]:[]),...(c.status==='open'||c.status==='done'?[['close','Закрыть ссылку']]:[])],v:''})),
+  dialog('Ссылки для мастера',l.map((c,i)=>({n:'a'+i,l:`${dfmt(String(c.created).slice(0,10))}: ${sl[c.status]||c.status} (${c.done}/${c.total})`,w:1,opts:[['','—'],...(c.status==='open'?[['edit','Изменить список']]:[]),...(c.status==='done'?[['review','Открыть ответ мастера']]:[]),...(c.status==='open'||c.status==='done'?[['close','Закрыть ссылку']]:[])],v:''})),
   x=>{l.forEach((c,i)=>{const a=x['a'+i];
     if(a==='close')api('checklist/'+c.id+'/decide','POST',{action:'close'}).then(refreshInbox).then(()=>render()).catch(e=>toast(e.message,1));
-    if(a==='review')setTimeout(()=>openInbox(c.id),50)})});
+    if(a==='review')setTimeout(()=>openInbox(c.id),50);if(a==='edit')setTimeout(()=>editSheet(c.id),50)})});
 }
 async function adminDialog(){
   let s;try{s=await api('admin/settings')}catch(e){return toast(e.message,1)}
@@ -741,20 +756,144 @@ async function pushDisable(){
   try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
     if(sub){await api('push/unsubscribe','POST',{endpoint:sub.endpoint});await sub.unsubscribe()}toast('Отключено на этом устройстве')}catch(e){toast(e.message,1)}
 }
+async function adminItems(){
+  let list;try{list=await api('admin/items')}catch(e){return toast(e.message,1)}
+  const cats=[...new Set(Object.values(TPL).flatMap(o=>Object.keys(o)).concat(['Прочее']))];
+  dialog('Пункты для транспорта',[
+    {n:'vtype',l:'Тип транспорта',w:1,opts:TYPES,v:'moto'},
+    {n:'cat',l:'Категория',w:1,opts:cats.map(c=>[c,c]),v:'Прочее'},
+    {n:'n_ru',l:'Название (русский)',w:1,v:''},{n:'n_en',l:'Название (English)',w:1,v:''},
+    {n:'n_uk',l:'Название (українська)',w:1,v:''},{n:'n_ja',l:'Название (日本語)',w:1,v:''},
+    {n:'km',l:'Интервал, км (0 — нет)',t:'number',v:0},{n:'mo',l:'Интервал, мес. (0 — нет)',t:'number',v:0},
+    {sep:'Уже добавленные: скрыть или вернуть'},
+    {n:'act',l:'Пункт',w:1,opts:[['','—'],...list.map(i=>[i.id+'|'+(i.archived?'show':'hide'),((TYPES.find(t=>t[0]===i.vtype)||[0,i.vtype])[1])+': '+i.names.ru+(i.archived?' (скрыт)':'')])],v:''}],
+  x=>{
+    const ru=(x.n_ru||'').trim();
+    if(!ru&&!x.act)return 'Укажите название на русском или выберите пункт';
+    (async()=>{
+      try{
+        if(ru)await api('admin/items','POST',{vtype:x.vtype,cat:x.cat,names:{ru,en:x.n_en,uk:x.n_uk,ja:x.n_ja},km:+x.km||0,mo:+x.mo||0});
+        if(x.act){const [id,a]=x.act.split('|');await api('admin/items/'+id,'POST',{archived:a==='hide'})}
+        await loadCatalog();await loadState();toast('Сохранено');
+      }catch(e){toast(e.message,1)}
+    })();
+  },{lead:'Пункт появится у всех пользователей этого типа: у уже добавленных транспортов и у новых. Название заполните на всех языках сайта; пустые языки возьмут русское.'});
+}
 async function pushDialog(){
   let p;try{p=await api('push/prefs')}catch(e){return toast(e.message,1)}
-  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),sa=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),sa=isStandalone();
+  const wd=[['1','Пн'],['2','Вт'],['3','Ср'],['4','Чт'],['5','Пт'],['6','Сб'],['0','Вс']];
+  const md=Array.from({length:31},(_,i)=>[String(i+1),String(i+1)]);
   dialog('Уведомления',[
     {n:'on',l:'Уведомления',w:1,opts:[['1','Включены'],['0','Выключены']],v:p.on?'1':'0'},
-    {n:'days',l:'Дни недели',w:1,opts:PUSH_DAYS,v:p.days},
+    {n:'mode',l:'Как часто',w:1,opts:[['weekly','Каждую неделю'],['monthly','Раз в месяц']],v:p.mode||'weekly'},
+    {n:'days',l:'Каждую неделю: в какие дни',multi:wd,v:p.days||'1,4'},
+    {n:'mdays',l:'Раз в месяц: до 4 раз, числа месяца (приходит, только если деталь просрочена)',multi:md,v:p.mdays||''},
     {n:'hour',l:'Час отправки',w:1,opts:Array.from({length:17},(_,i)=>[String(i+6),(i+6)+':00']),v:String(p.hour)},
     {n:'act',l:'Это устройство',w:1,opts:[['','Оставить как есть'],['on','Включить уведомления здесь'],['test','Отправить тестовое уведомление'],['off','Отключить здесь']],v:''}],
   x=>{
-    api('push/prefs','PUT',{on:x.on==='1',days:x.days,hour:+x.hour,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}).catch(e=>toast(e.message,1));
+    const mcount=x.mdays?x.mdays.split(',').length:0;
+    if(x.mode==='monthly'&&(!mcount||mcount>4))return 'Выберите от 1 до 4 чисел месяца';
+    if(x.mode!=='monthly'&&!x.days)return 'Выберите хотя бы один день недели';
+    api('push/prefs','PUT',{on:x.on==='1',mode:x.mode,days:x.days,mdays:x.mdays,hour:+x.hour,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}).catch(e=>sys(e.message,1));
     if(x.act==='on')pushEnable().then(ok=>ok&&toast('Уведомления включены на этом устройстве'));
     if(x.act==='test')api('push/test','POST').then(r=>toast(r.sent?'Тест отправлен':'Нет устройств с уведомлениями. Сначала включите их здесь.',!r.sent)).catch(e=>toast(e.message,1));
     if(x.act==='off')pushDisable();
-  },{lead:'Дайджест приходит в выбранные дни, только если есть что напомнить: масло, свечи, ремень ГРМ, шины, страховка и техосмотр. Устройств с уведомлениями: '+p.devices+'.'+(ios&&!sa?' На iPhone сначала установите сайт на экран «Домой» и откройте его оттуда.':'')});
+  },{lead:'Выберите, как часто напоминать: каждую неделю в выбранные дни или раз в месяц в выбранные числа. Страховка и техосмотр приходят отдельно, по своему графику. Устройств с уведомлениями: '+p.devices+'.'+(ios&&!sa?' На iPhone сначала установите сайт на экран «Домой» и откройте его оттуда.':'')});
+}
+const QR_ICON='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm11-2h2v2h-2zm-2 2h2v2h-2zm4 0h2v4h-4v-2h2zm-4 4h2v2h-2z"/></svg>';
+function plate(r,k){
+  const head=r.kind==='add'?'Мастер запросил дополнительную работу':'Мастер отменил работу';
+  return `<button class="rq ${k}" data-reqs="1">${head}: «${esc(r.name)}»${r.vehicleName?' · '+esc(r.vehicleName):''}${k==='free'?' (бесплатно)':''}</button>`;
+}
+function renderReqBar(){
+  const el=$('reqbar');if(!el)return;
+  if(!ME||!REQS.length){el.innerHTML='';return}
+  el.innerHTML=[...REQS.filter(r=>r.price>0).map(r=>plate(r,'paid')),...REQS.filter(r=>!(r.price>0)).map(r=>plate(r,'free'))].join('');
+}
+function requestsDialog(){
+  if(!REQS.length)return toast('Запросов нет');
+  dialog('Запросы мастера',[
+    ...REQS.map(r=>({n:'q'+r.id,l:`${r.vehicleName}: ${r.kind==='add'?'добавить':'убрать'} «${r.name}»${r.price>0?' — '+r.price:' (бесплатно)'}${r.note?'. '+r.note:''}`,w:1,opts:[['','Ждёт'],['accept','Принять'],['reject','Отклонить']],v:''})),
+    {n:'nt',l:'Комментарий для мастера (необязательно)',w:1,v:''}],
+  x=>{(async()=>{try{
+      for(const r of REQS){const a=x['q'+r.id];if(a)await api('requests/'+r.id,'POST',{action:a,ownerNote:x.nt||''})}
+      await refreshInbox();renderReqBar();toast('Готово');
+    }catch(e){toast(e.message,1)}})()},
+  {lead:'Пункт, который вы не приняли, мастер не выполняет. Остальные работы он продолжает по списку.'});
+}
+async function editSheet(cid){
+  try{
+    const c=await api('checklist/'+cid),items=(c.snapshot.items||[]);
+    const cats=[...new Set(Object.values(TPL).flatMap(o=>Object.keys(o)).concat(['Прочее']))];
+    dialog('Изменить открытый лист',[
+      {n:'rm',l:'Убрать позицию',w:1,opts:[['','—'],...items.map(i=>[i.key,trName(i.name,LANG)])],v:''},
+      {n:'an',l:'Добавить позицию: название',w:1,v:''},
+      {n:'ac',l:'Категория',w:1,opts:cats.map(x=>[x,x]),v:'Прочее'}],
+    x=>{(async()=>{try{
+        if(x.rm)await api('checklist/'+cid+'/edit','POST',{remove:x.rm});
+        if(x.an.trim())await api('checklist/'+cid+'/edit','POST',{add:{name:x.an.trim(),cat:x.ac}});
+        await refreshInbox();renderReqBar();toast('Лист изменён');
+      }catch(e){toast(e.message,1)}})()},
+    {lead:'Пока мастер не нажал «Сделано», вы можете менять список сами. После этого список фиксируется.'});
+  }catch(e){toast(e.message,1)}
+}
+function vehDetailsDialog(v){
+  dialog('Данные для мастера',[
+    {n:'plate',l:'Госномер (мастер увидит после ввода PIN)',w:1,v:v.plate||''},
+    {n:'frame',l:'Номер рамы (мастер увидит после ввода PIN)',w:1,v:v.frame||''},
+    {n:'eng',l:'Объём двигателя, см³',t:'number',v:v.eng||''},
+    {n:'tiLast',l:'Техосмотр пройден: дата',t:'date',v:v.tiLast||''}],
+  x=>{v.plate=x.plate.trim();v.frame=x.frame.trim();v.eng=x.eng===''?null:+x.eng;v.tiLast=x.tiLast||'';save();render();toast('Сохранено')},
+  {lead:'Страховку и срок техосмотра задавайте в карточках выше. Эти данные нужны только мастеру и не попадают в QR-код.'});
+}
+function qrCanvas(url,pin){
+  const q=QR.matrix(url),n=q.length,qz=4,W=900,H=360,cell=Math.floor(300/(n+2*qz)),qs=cell*(n+2*qz);
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,H);
+  const ox=30+Math.floor((300-qs)/2),oy=Math.floor((H-qs)/2);g.fillStyle='#000';
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q[y][x])g.fillRect(ox+(x+qz)*cell,oy+(y+qz)*cell,cell,cell);
+  const tx=370;g.fillStyle='#000';
+  g.font='bold 52px Arial,Helvetica,sans-serif';g.fillText((CK[LANG]&&CK[LANG].qrEnter)||'Введите PIN-код',tx,120);
+  g.font='bold 150px Arial,Helvetica,sans-serif';g.fillText(pin,tx,270);
+  g.font='28px Arial,Helvetica,sans-serif';g.fillText(url.replace(/^https?:\/\//,'').slice(0,34),tx,330);
+  return cv;
+}
+async function makePdf(cv){
+  const W=cv.width,H=cv.height,d=cv.getContext('2d').getImageData(0,0,W,H).data;
+  const gray=new Uint8Array(W*H);
+  for(let i=0,j=0;i<gray.length;i++,j+=4)gray[i]=(d[j]*299+d[j+1]*587+d[j+2]*114)/1000|0;
+  const comp=new Uint8Array(await new Response(new Blob([gray]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const pw=(W*0.28346).toFixed(2),ph=(H*0.28346).toFixed(2),enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const put=u=>{parts.push(u);len+=u.length};const txt=t=>put(enc.encode(t));
+  const obj=(n,body)=>{offs[n]=len;txt(n+' 0 obj\n'+body+'\nendobj\n')};
+  txt('%PDF-1.4\n');
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
+  const cs=`q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+  obj(4,`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`);
+  offs[5]=len;txt(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${W} /Height ${H} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${comp.length} >>\nstream\n`);
+  put(comp);txt('\nendstream\nendobj\n');
+  const xref=len;let x='xref\n0 6\n0000000000 65535 f \n';
+  for(let i=1;i<=5;i++)x+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+  txt(x+'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');
+  return new Blob(parts,{type:'application/pdf'});
+}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+async function qrSheet(v){
+  try{
+    RL=LANG;RMODE='check';renderCheck(v);
+    const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:'',date:today(),items:CKSNAP};
+    if(!snapshot.items.length)return toast('Нет позиций для листа',1);
+    const r=await api('checklist','POST',{vehicleId:v.id,lang:LANG,snapshot});
+    const url=(r.publicUrl||ST.publicUrl||location.origin)+'/m/'+r.token;
+    const cv=qrCanvas(url,r.pin),base='qr-'+String(v.name).replace(/[^\w]+/g,'-');
+    dialog('QR-лист',[{n:'fmt',l:'Формат',w:1,opts:[['png','Картинка PNG'],['pdf','PDF для печати']],v:'png'}],x=>{
+      if(x.fmt==='pdf')makePdf(cv).then(b=>download(b,base+'.pdf'));
+      else cv.toBlob(b=>download(b,base+'.png'),'image/png');
+    },{ok:'Скачать',lead:'PIN-код: '+r.pin+'. Лист создан, предыдущий открытый лист этого транспорта закрыт.'});
+  }catch(e){toast(e.message,1)}
 }
 function convertUnit(v,to){
   const f=to==='mi'?0.621371:1.609344,c=n=>n==null?n:Math.round(n*f),r100=n=>n?Math.max(100,Math.round(n*f/100)*100):0;
@@ -875,6 +1014,10 @@ document.addEventListener('click',e=>{
   const ph=t.closest('[data-ph]');
   if(ph){const it=v.items.find(x=>x.id===ph.dataset.ph);if(it){const ids=H(it).flatMap(x=>x.ph||[]);if(ids.length)lightbox(ids,0)}return}
   if(t.closest('#panelBtn'))return panelDialog(v);
+  if(t.closest('#vdBtn'))return vehDetailsDialog(v);
+  if(t.closest('#qrBtn'))return qrSheet(v);
+  if(t.closest('[data-reqs]'))return requestsDialog();
+  if(t.closest('#admItemsBtn'))return adminItems();
   const b=t.closest('[data-a]');
   if(b){
     const it=v.items.find(x=>x.id===b.dataset.id);
@@ -912,7 +1055,7 @@ document.addEventListener('input',e=>{if(e.target.id==='rNote'){RNOTE=e.target.v
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='rCus'){e.preventDefault();$('rCusBtn').click()}});
 const plain=x=>String(x).replace(/<br>/g,' · ').replace(/<div[^>]*>/g,' · ').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&amp;/g,'&').trim();
 function snapAdd(it,kind,why,prev,L){
-  CKSNAP.push({key:it.id,name:it.name,cat:it.cat,kind,why:plain(why),prev:plain(prev),ex:exKeys(it).map(k=>({k,label:L==='ja'?EX[k][1]:(L==='en'||L==='uk')?EXL[k][L]:EX[k][0],ph:EX[k][2]}))});
+  CKSNAP.push({key:it.id,names:catNames(it.name),name:it.name,cat:it.cat,kind,why:plain(why),prev:plain(prev),ex:exKeys(it).map(k=>({k,label:L==='ja'?EX[k][1]:(L==='en'||L==='uk')?EXL[k][L]:EX[k][0],ph:EX[k][2]}))});
 }
 const qrBlock=c=>`<div class="qrbox">${QR.svg(RCKL.url,120)}<div><b>${c.qrTitle}</b><div>${c.qrHint}</div><div class="pin">${c.pin}: <b>${RCKL.pin}</b></div><div class="qurl">${esc(RCKL.url.replace(/^https?:\/\//,''))}</div></div></div>`;
 async function printChecklist(){
@@ -1015,8 +1158,16 @@ $('file').onchange=e=>{
 };
 
 let ME=null,bootGen=0,ST={};
+let CATALOG=[];
+let REQS=[];
+async function loadCatalog(){try{CATALOG=await api('catalog')}catch(e){CATALOG=[]}registerCatalog()}
+function registerCatalog(){
+  Object.keys(RXC).forEach(k=>delete RXC[k]);
+  CATALOG.forEach(c=>['en','uk','ja'].forEach(l=>{if(c.names[l]){NM[l][c.names.ru]=c.names[l];UIM[l][c.names.ru]=c.names[l]}}));
+}
+const catNames=ru=>{const c=CATALOG.find(x=>x.names.ru===ru);return c?c.names:null};
 const reachable=u=>Promise.race([fetch(u+'/api/health',{mode:'no-cors',cache:'no-store'}).then(()=>true,()=>false),new Promise(r=>setTimeout(()=>r(false),3500))]);
-async function refreshInbox(){try{INBOX=await api('checklists')}catch(e){}}
+async function refreshInbox(){try{INBOX=await api('checklists')}catch(e){}try{REQS=await api('requests')}catch(e){}}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(p,method='GET',body){
   const r=await fetch('api/'+p,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
@@ -1038,6 +1189,7 @@ async function boot(){
   for(let i=0;i<15&&!st;i++){try{st=await api('status')}catch(e){$('main').innerHTML='<div class="empty">Подключаюсь к приложению…</div>';await sleep(2000)}}
   if(!st){$('main').innerHTML='<div class="empty">Не удалось связаться с сервером.<br><br><button class="p" onclick="location.reload()">Повторить</button></div>';return}
   ST=st;
+  await loadCatalog();
   if(st.redirect&&st.publicUrl&&location.origin!==st.publicUrl&&!/[?&]local=1/.test(location.search)){
     if(await reachable(st.publicUrl)){location.replace(st.publicUrl+location.pathname+location.search+location.hash);return}
     sys('Публичный адрес недоступен, остаёмся на локальном',1);
@@ -1097,7 +1249,7 @@ function showAuth(st,mode){
   $('aL').focus();
 }
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-setInterval(async()=>{if(!loaded||document.hidden||$('dlg').open||view==='inbox')return;const n=INBOX.filter(x=>x.status==='done').length;await refreshInbox();if(INBOX.filter(x=>x.status==='done').length!==n&&(view==='home'||view==='veh'))render()},60000);
+setInterval(async()=>{if(!loaded||document.hidden||$('dlg').open||view==='inbox')return;const n=INBOX.filter(x=>x.status==='done').length;await refreshInbox();renderReqBar();if(INBOX.filter(x=>x.status==='done').length!==n&&(view==='home'||view==='veh'))render()},60000);
 boot();
 </script>
 </body>

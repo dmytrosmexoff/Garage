@@ -16,6 +16,7 @@ h1{font-size:22px;margin:4px 0}h2{font-size:15px;margin:18px 0 6px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 select,input,textarea,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
 button{cursor:pointer;width:auto;background:var(--panel)}button.p{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+button:disabled{opacity:.5}
 label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
 .card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
 .card.must{border-left-color:var(--bad)}.card.opt,.card.extra,.card.custom{border-left-color:var(--soon)}.card.nod{border-left-color:var(--mute)}
@@ -23,14 +24,19 @@ label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3p
 .tag{font-size:11px;border:1px solid var(--mute);border-radius:9px;padding:0 7px;white-space:nowrap}.tag.must{border-color:var(--bad);color:var(--bad)}
 small,.meta{color:var(--mute);font-size:13px}.why{margin-top:6px;font-size:14px}.rej{margin-top:6px;color:var(--bad);font-weight:600;font-size:14px}
 .seg{display:flex;gap:8px;margin:10px 0}.seg button{flex:1;padding:12px}.seg button.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
-.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}.form .w{grid-column:1/-1}.card[data-s=skip] .dn{display:none}
-.row{display:flex;gap:10px;align-items:center;margin-top:6px}.ok{color:var(--ok);font-weight:700}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}.form .w{grid-column:1/-1}
+.row{display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap}.ok{color:var(--ok);font-weight:700}
 .thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .msg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-top:40px;text-align:center}
 .pin{font-size:32px;letter-spacing:.4em;text-align:center}
 .err{color:var(--bad);min-height:20px;margin:6px 0;font-size:14px}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s}.toast.show{opacity:1}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center}.toast.show{opacity:1}
 .note{border:1px dashed var(--line);border-radius:8px;padding:8px 10px;white-space:pre-wrap;margin:6px 0}
+.veh{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+.veh div{font-size:15px;margin:2px 0}.veh b{font-weight:600}
+.st{font-size:12px;font-weight:700;border-radius:9px;padding:1px 8px;border:1px solid currentColor;white-space:nowrap}
+.st.wait{color:var(--soon)}.st.ok{color:var(--ok)}.st.no{color:var(--bad)}
+.rqf{border:1px dashed var(--acc);border-radius:10px;padding:10px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -41,8 +47,11 @@ startI18n();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const TOKEN=location.pathname.split('/')[2]||'',today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-let PIN='',SNAP=null,ENT={},STATUS='',tt;
+let PIN='',SNAP=null,ENT={},STATUS='',VEH={},REQS=[],INFO=null,tt;
 const toast=m=>{const e=$('toast');e.textContent=trStr(m);e.className='toast show';clearTimeout(tt);tt=setTimeout(()=>e.className='toast',3200)};
+const tn=it=>(it.names&&(it.names[LANG]||it.names.ru))||trName(it.name,LANG);
+const locked=()=>Object.values(ENT).some(e=>e&&e.state==='done');
+const TYPE_NAMES={moto:'Мотоцикл',car:'Автомобиль',moped:'Мопед / скутер',boat:'Моторная лодка',sail:'Парусная яхта',jet:'Гидроцикл',other:'Другое'};
 async function call(path,body,raw,hdr){
   const r=await fetch('/api/m/'+TOKEN+'/'+path,{method:body||raw?'POST':'GET',headers:Object.assign(body?{'Content-Type':'application/json'}:{},hdr||{}),body:raw||(body?JSON.stringify(body):undefined)});
   let j={};try{j=await r.json()}catch(e){}
@@ -58,17 +67,24 @@ const langSel=()=>`<select id="lg" style="width:auto" aria-label="Language">${LA
 function bindLang(){const s=$('lg');if(s)s.onchange=()=>{LANG=s.value;SNAP?render():showPin()}}
 function showMsg(t){$('app').innerHTML=`<div class="top"><h1>Garage Journal</h1>${langSel()}</div><div class="msg">${t}</div>`;bindLang()}
 function showPin(err){
+  const info=INFO?`<p><b>${esc(INFO.name)}</b> · ${esc(trStr(TYPE_NAMES[INFO.type]||''))}</p>`:'';
   $('app').innerHTML=`<div class="top"><h1>Чек-лист для мастера</h1>${langSel()}</div>
-  <div class="msg"><p>Введите PIN-код с листа</p><input class="pin" id="pin" inputmode="numeric" maxlength="4" autocomplete="off" autofocus>
+  <div class="msg">${info}<p>Введите PIN-код с листа</p><input class="pin" id="pin" inputmode="numeric" maxlength="4" autocomplete="off" autofocus>
   <div class="err" id="err">${err?esc(trStr(err)):''}</div><button class="p" id="go" style="width:100%">Открыть</button></div>`;
-  bindLang();const go=async()=>{PIN=$('pin').value.trim();if(PIN.length!==4)return;try{await load()}catch(e){showPin(e.message)}};
+  bindLang();
+  const go=async()=>{PIN=$('pin').value.trim();if(PIN.length!==4)return;try{await load()}catch(e){showPin(e.message)}};
   $('go').onclick=go;$('pin').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+async function loadInfo(){
+  try{const r=await fetch('/api/m/'+TOKEN+'/info');if(!r.ok)throw r.status;INFO=await r.json();return true}
+  catch(e){showMsg('Ссылка не найдена или закрыта.');return false}
 }
 async function load(){
   const r=await call('open',{pin:PIN});
   if(r.status==='closed')return showMsg('Ссылка закрыта владельцем.');
   if(r.status==='accepted')return showMsg('Работа принята владельцем. Спасибо!');
-  SNAP=r.snapshot;ENT=r.entries||{};STATUS=r.status;if(SNAP.lang)LANG=SNAP.lang;render();
+  SNAP=r.snapshot;ENT=r.entries||{};STATUS=r.status;VEH=r.vehicle||{};REQS=r.requests||[];
+  if(SNAP.lang)LANG=SNAP.lang;render();
 }
 const unit=()=>({km:RT[LANG].km,mi:UNITMI[LANG],h:RT[LANG].h})[SNAP.vehicle.unit]||'km';
 function card(it){
@@ -76,32 +92,68 @@ function card(it){
   const ro=STATUS!=='open';
   const ex=(it.ex||[]).map(x=>`<label>${esc(x.label)}<input data-x="${x.k}" value="${esc((e.x||{})[x.k]||'')}" placeholder="${esc(x.ph||'')}"></label>`).join('');
   return `<div class="card ${it.kind}" id="c_${it.key}" data-s="${st}">
-  <div class="hd"><b>${esc(trName(it.name,LANG))}</b><span class="tag ${it.kind==='must'?'must':''}">${c[tag]||''}</span></div>
+  <div class="hd"><b>${esc(tn(it))}</b><span class="tag ${it.kind==='must'?'must':''}">${c[tag]||''}</span></div>
   <small>${esc(trName(it.cat,LANG))}</small>
   ${it.why?`<div class="why">${esc(it.why)}</div>`:''}${it.prev?`<div class="meta">Прошлая замена: ${esc(it.prev)}</div>`:''}
   ${e.review==='rejected'?`<div class="rej">Владелец вернул: ${esc(e.ownerNote||'')}</div>`:''}
+  ${!ro&&!locked()?`<div class="row"><button data-rm="${it.key}">Убрать из списка</button></div>`:''}
   <div class="seg"><button class="${st==='done'?'on':''}" data-st="${it.key}|done" ${ro?'disabled':''}>Сделано</button><button class="${st==='skip'?'on':''}" data-st="${it.key}|skip" ${ro?'disabled':''}>Не делал</button></div>
   <div class="form" ${st?'':'hidden'}>
-   <label class="dn">Дата<input name="date" type="date" value="${esc(e.date||today())}"></label>
-   <label class="dn">Пробег<input name="km" type="number" inputmode="numeric" value="${e.km!=null?e.km:SNAP.vehicle.odo}"> </label>
-   <label class="dn w">Стоимость, ${esc(SNAP.vehicle.cc||'')}<input name="cost" type="number" inputmode="decimal" value="${e.cost!=null?e.cost:''}"></label>
-   <div class="dn w form" style="margin:0">${ex}</div>
-   <label class="w">Комментарий<textarea name="note" rows="2">${esc(e.note||'')}</textarea></label>
-   <label class="dn w">Фото<input name="ph" type="file" accept="image/*" multiple></label>
+   <label>Дата<input name="date" type="date" value="${esc(e.date||today())}"></label>
+   <label>Пробег<input name="km" type="number" inputmode="numeric" value="${e.km!=null?e.km:SNAP.vehicle.odo}"></label>
+   <label class="w">Стоимость, ${esc(SNAP.vehicle.cc||'')}<input name="cost" type="number" inputmode="decimal" value="${e.cost!=null?e.cost:''}"></label>
+   ${ex?`<div class="w form" style="margin:0">${ex}</div>`:''}
+   <label class="w">Комментарий (для «Не делал» обязателен: почему работа не сделана)<textarea name="note" rows="2">${esc(e.note||'')}</textarea></label>
+   <label class="w">Фото<input name="ph" type="file" accept="image/*" multiple></label>
    <div class="thumbs w" data-ph="${(e.ph||[]).join(',')}"></div>
    <div class="row w"><button class="p" data-save="${it.key}" ${ro?'disabled':''}>Сохранить</button><span class="ok">${e.state?'✓':''}</span></div>
   </div></div>`;
 }
+function reqRow(q){
+  const cls=q.status==='pending'?'wait':q.status==='accepted'?'ok':'no';
+  const txt=q.status==='pending'?'ожидает одобрения':q.status==='accepted'?'принято':'отклонено';
+  return `<div class="card"><div class="hd"><b>${esc(q.kind==='add'?'Добавить':'Убрать')}: ${esc(trStr(q.name))}</b><span class="st ${cls}">${txt}</span></div>
+  ${q.price>0?`<div class="meta">Цена: ${esc(q.price)}</div>`:''}${q.note?`<div class="meta">${esc(q.note)}</div>`:''}
+  ${q.owner_note?`<div class="meta">Ответ владельца: ${esc(q.owner_note)}</div>`:''}</div>`;
+}
+function vehBlock(){
+  const v=VEH||{},rows=[];
+  if(v.eng)rows.push(`<div><b>Объём:</b> ${esc(v.eng)} см³</div>`);
+  if(v.plate)rows.push(`<div><b>Госномер:</b> ${esc(v.plate)}</div>`);
+  if(v.frame)rows.push(`<div><b>Номер рамы:</b> ${esc(v.frame)}</div>`);
+  if(v.tiLast)rows.push(`<div><b>Техосмотр пройден:</b> ${esc(String(v.tiLast).slice(0,10))}</div>`);
+  if(v.insEnd)rows.push(`<div><b>Страховка до:</b> ${esc(String(v.insEnd).slice(0,10))}</div>`);
+  return rows.length?`<div class="veh">${rows.join('')}</div>`:'';
+}
 function render(){
   const v=SNAP.vehicle,c=CK[LANG],items=SNAP.items||[];
-  const block=(kind,title)=>{const l=items.filter(i=>kind.includes(i.kind));return l.length?`<h2>${title}</h2>`+l.map(card).join(''):''};
+  const block=(kinds,title)=>{const l=items.filter(i=>kinds.includes(i.kind));return l.length?`<h2>${title}</h2>`+l.map(card).join(''):''};
   $('app').innerHTML=`<div class="top"><h1>${c.title}</h1>${langSel()}</div>
   <div class="meta">${esc(v.name)} · ${c.mil}: ${Number(v.odo).toLocaleString()} ${unit()}</div>
+  ${vehBlock()}
   ${SNAP.note?`<h2>${c.wish}</h2><div class="note">${esc(SNAP.note)}</div>`:''}
-  <p class="meta">${STATUS==='open'?'Отметьте результат по каждой позиции и нажмите «Сохранить». Когда всё готово, нажмите «Работа окончена»: владелец проверит и подтвердит.':'Отправлено владельцу. Ждёт подтверждения.'}</p>
+  <p class="meta">${STATUS==='open'?'Отметьте результат по каждой позиции и нажмите «Сохранить». Новые работы и отмены предлагайте через «Убрать из списка» и «Добавить свою позицию»: владелец подтвердит их в приложении. Когда всё готово, нажмите «Работа окончена».':'Отправлено владельцу. Ждёт подтверждения.'}</p>
   ${block(['must'],c.must)}${block(['opt'],c.opt)}${block(['nod'],c.nod)}${block(['extra','custom'],c.tagE)}
+  ${STATUS==='open'?`<h2>Запросы изменений</h2>
+  <div class="card"><b>Добавить свою позицию</b>
+    <div class="rqf form"><label class="w">Название работы<input id="newName"></label>
+    <label>Цена, ${esc(v.cc||'')} (0 — бесплатно)<input id="newPrice" type="number" min="0" inputmode="decimal" value="0"></label>
+    <label class="w">Комментарий (обязателен, если цена больше 0)<textarea id="newNote" rows="2"></textarea></label>
+    <div class="w"><button id="addItem" class="p">Отправить запрос</button></div></div></div>`:''}
+  ${REQS.length?`<h2>Ваши запросы</h2>${REQS.map(reqRow).join('')}`:''}
   ${STATUS==='open'?'<div style="margin-top:18px"><button class="p" id="fin" style="width:100%;padding:14px">Работа окончена</button></div>':''}`;
   bindLang();wire();thumbs();
+}
+function askReason(kind,key){
+  const it=key?(SNAP.items||[]).find(i=>i.key===key):null;
+  const label=it?tn(it):'';
+  const price=prompt((kind==='remove'?'Убрать: ':'')+label+'\nЦена работы (0 — бесплатно):','0');
+  if(price===null)return;
+  const p=+price||0;
+  let note='';
+  if(p>0){note=prompt('Комментарий (обязателен, т.к. работа платная):','');if(note===null)return;if(!note.trim())return toast('Напишите комментарий: за платную работу нужно объяснение')}
+  else{note=prompt('Комментарий (необязательно):','')||''}
+  return {price:p,note:note.trim()};
 }
 function wire(){
   document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{
@@ -109,6 +161,16 @@ function wire(){
     c.querySelectorAll('[data-st]').forEach(x=>x.classList.toggle('on',x===b));c.querySelector('.form').hidden=false;
   });
   document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>save(b.dataset.save,b));
+  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
+    const r=askReason('remove',b.dataset.rm);if(!r)return;
+    try{await call('remove',{pin:PIN,key:b.dataset.rm,price:r.price,note:r.note});toast('Запрос отправлен владельцу');await load()}catch(e){toast(e.message)}
+  });
+  const ai=$('addItem');if(ai)ai.onclick=async()=>{
+    const name=$('newName').value.trim(),price=+$('newPrice').value||0,note=$('newNote').value.trim();
+    if(!name)return toast('Введите название');
+    if(price>0&&!note)return toast('Напишите комментарий: за платную работу нужно объяснение');
+    try{await call('add',{pin:PIN,item:{name},price,note});toast('Запрос отправлен владельцу');await load()}catch(e){toast(e.message)}
+  };
   const f=$('fin');if(f)f.onclick=async()=>{
     if(!confirm('Завершить работу и отправить владельцу?'))return;
     try{await call('finish',{pin:PIN});STATUS='done';render();window.scrollTo(0,0)}catch(e){toast(e.message)}
@@ -126,6 +188,7 @@ async function save(key,btn){
   const c=$('c_'+key),g=n=>c.querySelector('[name='+n+']'),old=ENT[key]||{};
   const e={state:c.dataset.s,date:g('date').value,km:g('km').value,cost:g('cost').value,note:g('note').value,x:{},ph:(old.ph||[]).slice()};
   if(!e.state)return toast('Выберите: «Сделано» или «Не делал»');
+  if(e.state==='skip'&&!e.note.trim())return toast('Напишите, почему работа не сделана');
   c.querySelectorAll('[data-x]').forEach(i=>{if(i.value.trim())e.x[i.dataset.x]=i.value.trim()});
   btn.disabled=true;
   try{
@@ -138,7 +201,7 @@ async function save(key,btn){
     const it=SNAP.items.find(i=>i.key===key);c.outerHTML=card(it);wire();thumbs();toast('Сохранено');
   }catch(err){btn.disabled=false;toast(err.message)}
 }
-showPin();
+(async()=>{ if(await loadInfo())showPin(); })();
 </script>
 </body>
 </html>

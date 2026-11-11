@@ -142,6 +142,35 @@ const SCHEMA = [
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_push_ep (ep_hash),
   INDEX idx_push_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS custom_items(
+  id VARCHAR(32) NOT NULL PRIMARY KEY,
+  vtype VARCHAR(16) NOT NULL,
+  category VARCHAR(120) NOT NULL,
+  names TEXT NOT NULL,
+  km INT NOT NULL DEFAULT 0,
+  mo INT NOT NULL DEFAULT 0,
+  archived TINYINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ci_type (vtype)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS checklist_requests(
+  id VARCHAR(24) NOT NULL PRIMARY KEY,
+  checklist_id VARCHAR(32) NOT NULL,
+  user_id INT NOT NULL,
+  kind VARCHAR(8) NOT NULL,
+  item_key VARCHAR(40) NOT NULL DEFAULT '',
+  name VARCHAR(200) NOT NULL DEFAULT '',
+  cat VARCHAR(120) NOT NULL DEFAULT '',
+  price DECIMAL(12,2) NULL,
+  note TEXT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'pending',
+  owner_note VARCHAR(300) NOT NULL DEFAULT '',
+  pushed TINYINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at DATETIME NULL,
+  INDEX idx_req_cl (checklist_id),
+  INDEX idx_req_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
@@ -165,7 +194,14 @@ async function initSchema(p) {
   await addCol(p, 'users', 'push_tz', "VARCHAR(60) NOT NULL DEFAULT 'UTC'");
   await addCol(p, 'users', 'push_last', 'DATE NULL');
   await addCol(p, 'users', 'push_docs', 'DATE NULL');
+  await addCol(p, 'users', 'push_mode', "VARCHAR(8) NOT NULL DEFAULT 'weekly'");
+  await addCol(p, 'users', 'push_mdays', "VARCHAR(120) NOT NULL DEFAULT ''");
   await addCol(p, 'parts', 'important', 'TINYINT NULL');
+  await addCol(p, 'vehicles', 'eng', 'INT NULL');
+  await addCol(p, 'vehicles', 'plate', "VARCHAR(20) NOT NULL DEFAULT ''");
+  await addCol(p, 'vehicles', 'frame', "VARCHAR(40) NOT NULL DEFAULT ''");
+  await addCol(p, 'vehicles', 'ti_last', 'DATE NULL');
+  await addCol(p, 'users', 'push_req_hour', "VARCHAR(16) NOT NULL DEFAULT ''");
   await addCol(p, 'part_history', 'details', 'TEXT NULL');
 }
 const mkPool = c => mysql.createPool({ host: c.host, port: c.port, user: c.user, password: c.password, database: c.database,
@@ -321,8 +357,11 @@ function tireAgeOf(name, details) {
   if (wk < 1 || wk > 53) return null;
   return (Date.now() - Date.UTC(yr, 0, 1 + 7 * (wk - 1))) / 31557600000;
 }
-async function digestFor(uid, lang, today, inclDocs) {
+async function digestFor(uid, lang, today, inclDocs, minR = 0.9) {
   const T = SRV[lang] || SRV.en;
+  const cr = (await pool.query('SELECT names FROM custom_items'))[0];
+  const CN = {}; cr.forEach(x => { const n = parseObj(x.names); if (n.ru) CN[n.ru] = n; });
+  const nameOf = (s2, l) => (CN[s2] ? (CN[s2][l] || CN[s2].ru) : trName(s2, l));
   const [vs] = await pool.query('SELECT id,name,odo,ins_end,ti_end FROM vehicles WHERE user_id=? ORDER BY sort_order', [uid]);
   if (!vs.length) return { lines: [], docs: false };
   const ids = vs.map(v => v.id);
@@ -334,8 +373,8 @@ async function digestFor(uid, lang, today, inclDocs) {
       if (!imp) return;
       let r = ratioOf(p, v.odo); const age = tireAgeOf(p.name, p.lastdet);
       if (age != null && age >= 5) r = Math.max(r == null ? 0 : r, age >= 6 ? 1 : 0.9);
-      if (r == null || r < 0.9) return;
-      rows.push({ r, text: `${v.name}: ${trName(p.name, lang)} — ${r >= 1 ? T.over : T.soon}${age != null && age >= 5 ? ' (' + T.tire(age.toFixed(1)) + ')' : ''}` });
+      if (r == null || r < minR) return;
+      rows.push({ r, text: `${v.name}: ${nameOf(p.name, lang)} — ${r >= 1 ? T.over : T.soon}${age != null && age >= 5 ? ' (' + T.tire(age.toFixed(1)) + ')' : ''}` });
     });
     if (inclDocs) [['ins', v.ins_end], ['ti', v.ti_end]].forEach(([k, end]) => {
       if (!end || end > addMonthsStr(today, 3)) return;
@@ -366,15 +405,17 @@ async function sendPush(uid, payload) {
 }
 async function digestTick() {
   if (!ready || !webpush) return;
-  const [us] = await pool.query('SELECT u.id,u.lang,u.push_days,u.push_hour,u.push_tz,u.push_last,u.push_docs FROM users u WHERE u.push_on=1 AND EXISTS(SELECT 1 FROM push_subs s WHERE s.user_id=u.id)');
+  const [us] = await pool.query('SELECT u.id,u.lang,u.push_mode,u.push_days,u.push_mdays,u.push_hour,u.push_tz,u.push_last,u.push_docs FROM users u WHERE u.push_on=1 AND EXISTS(SELECT 1 FROM push_subs s WHERE s.user_id=u.id)');
   for (const u of us) {
     try {
       const lt = localParts(u.push_tz);
       if (u.push_last === lt.date) continue;
-      if (!String(u.push_days || '').split(',').includes(String(lt.dow))) continue;
+      const monthly = u.push_mode === 'monthly';
+      if (monthly) { if (!String(u.push_mdays || '').split(',').includes(String(+lt.date.slice(8)))) continue; }
+      else if (!String(u.push_days || '').split(',').includes(String(lt.dow))) continue;
       if (lt.hour < u.push_hour || lt.hour > u.push_hour + 4) continue;
       const inclDocs = !u.push_docs || (Date.parse(lt.date) - Date.parse(u.push_docs)) / 864e5 >= 6.5;
-      const d = await digestFor(u.id, u.lang || 'en', lt.date, inclDocs);
+      const d = await digestFor(u.id, u.lang || 'en', lt.date, inclDocs, monthly ? 1 : 0.9);
       if (inclDocs && d.docs) await pool.query('UPDATE users SET push_last=?, push_docs=? WHERE id=?', [lt.date, lt.date, u.id]);
       else await pool.query('UPDATE users SET push_last=? WHERE id=?', [lt.date, u.id]);
       if (d.lines.length) await sendPush(u.id, { title: 'Garage Journal', body: d.lines.join('\n'), url: './', tag: 'digest' });
@@ -389,11 +430,17 @@ async function initPush() {
 async function afterReady() {
   try {
     await loadSettings(); await initPush();
-    if (!tickStarted) { tickStarted = true; setInterval(() => digestTick().catch(e => console.log(e.message)), 10 * 60 * 1000); setTimeout(() => digestTick().catch(() => {}), 20000); }
+    if (!tickStarted) { tickStarted = true; setInterval(() => { digestTick().catch(e => console.log(e.message)); reqTick().catch(() => {}); }, 10 * 60 * 1000); setTimeout(() => digestTick().catch(() => {}), 20000); }
   } catch (e) { console.log('afterReady', e.message); }
 }
 // ---- чек-листы для мастера ----
 const KEY_RX = /^[A-Za-z0-9_-]{1,32}$/, PH_RX = /^[a-f0-9]{16,32}$/;
+const nm4=x=>{if(!x||typeof x!=='object')return null;const o={};['ru','en','uk','ja'].forEach(k=>{const v=T(x[k],200).trim();if(v)o[k]=v});return Object.keys(o).length?o:null};
+const VT=['moto','car','moped','boat','sail','jet','other'];
+async function catalogRows(all){
+  const [r]=await pool.query(all?'SELECT * FROM custom_items ORDER BY created_at':'SELECT * FROM custom_items WHERE archived=0 ORDER BY created_at');
+  return r.map(x=>({id:x.id,vtype:x.vtype,cat:x.category,names:parseObj(x.names),km:x.km,mo:x.mo,archived:!!x.archived}));
+}
 function cleanSnapshot(s, lang) {
   s = s || {}; const v = s.vehicle || {};
   return {
@@ -402,7 +449,7 @@ function cleanSnapshot(s, lang) {
     note: T(s.note, 1500), date: D(s.date) || new Date().toISOString().slice(0, 10),
     items: (Array.isArray(s.items) ? s.items : []).slice(0, 150).filter(it => it && KEY_RX.test(String(it.key))).map(it => ({
       key: String(it.key), name: T(it.name, 200), cat: T(it.cat, 120), kind: ['must', 'opt', 'nod', 'extra', 'custom'].includes(it.kind) ? it.kind : 'extra',
-      why: T(it.why, 400), prev: T(it.prev, 300),
+      why: T(it.why, 400), prev: T(it.prev, 300), names: nm4(it.names),
       ex: (Array.isArray(it.ex) ? it.ex : []).slice(0, 8).filter(e => e && /^[a-z]{1,12}$/.test(String(e.k))).map(e => ({ k: String(e.k), label: T(e.label, 60), ph: T(e.ph, 40) }))
     }))
   };
@@ -431,16 +478,50 @@ async function masterLoad(token, pin, needOpen) {
 }
 const parseObj = s => { try { const v = JSON.parse(s || '{}'); return v && typeof v === 'object' ? v : {}; } catch (_) { return {}; } };
 
+const SRV2 = {
+  ru: { free: n => `Мастер изменил пункт (бесплатно): ${n}. Откройте приложение и подтвердите.`, hourly: n => `Мастер ждёт вашего ответа по работам: ${n}. Откройте приложение.` },
+  en: { free: n => `The mechanic changed an item (free): ${n}. Open the app to confirm.`, hourly: n => `The mechanic is waiting for your reply on ${n} request(s). Open the app.` },
+  uk: { free: n => `Майстер змінив пункт (безкоштовно): ${n}. Відкрийте застосунок і підтвердьте.`, hourly: n => `Майстер чекає вашої відповіді за роботами: ${n}. Відкрийте застосунок.` },
+  ja: { free: n => `整備士が項目を変更しました（無料）：${n}。アプリで確認してください。`, hourly: n => `整備士があなたの回答を待っています（${n}件）。アプリを開いてください。` }
+};
+async function reqPushOne(rid) {
+  const [r] = await pool.query('SELECT q.name,q.user_id,u.lang,u.push_on FROM checklist_requests q JOIN users u ON u.id=q.user_id WHERE q.id=?', [rid]);
+  if (!r[0]) return;
+  await pool.query('UPDATE checklist_requests SET pushed=1 WHERE id=?', [rid]);
+  if (!r[0].push_on) return;
+  const L = SRV2[r[0].lang] || SRV2.en;
+  await sendPush(r[0].user_id, { title: 'Garage Journal', body: L.free(r[0].name), url: './', tag: 'req-' + rid });
+}
+async function reqTick() {
+  if (!ready || !webpush) return;
+  const [us] = await pool.query("SELECT DISTINCT u.id,u.lang,u.push_tz,u.push_req_hour FROM users u JOIN checklist_requests q ON q.user_id=u.id WHERE u.push_on=1 AND q.status='pending' AND q.price>0 AND EXISTS(SELECT 1 FROM push_subs s WHERE s.user_id=u.id)");
+  for (const u of us) {
+    try {
+      const lt = localParts(u.push_tz), key = lt.date + ' ' + lt.hour;
+      if (lt.hour < 9 || lt.hour > 18 || u.push_req_hour === key) continue;
+      const [c] = await pool.query("SELECT COUNT(*) n FROM checklist_requests WHERE user_id=? AND status='pending' AND price>0", [u.id]);
+      const L = SRV2[u.lang] || SRV2.en;
+      await sendPush(u.id, { title: 'Garage Journal', body: L.hourly(c[0].n), url: './', tag: 'reqh' });
+      await pool.query('UPDATE users SET push_req_hour=? WHERE id=?', [key, u.id]);
+    } catch (e) { console.log('req tick', e.message); }
+  }
+}
+
 async function route2(req, res, u, m) {
   // страница мастера
   if (m === 'GET' && /^\/m\/[a-f0-9]{24}$/.test(u)) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
     fs.createReadStream(path.join(__dirname, 'public', 'master.html')).pipe(res); return true;
   }
-  const mm = /^\/api\/m\/([a-f0-9]{24})\/(open|entry|finish|photo)(?:\/([a-f0-9]{16,32}))?$/.exec(u);
+  const mm = /^\/api\/m\/([a-f0-9]{24})\/(info|open|entry|finish|photo|remove|add)(?:\/([a-f0-9]{16,32}))?$/.exec(u);
   if (mm) {
     if (!ready) throw httpErr(503, 'База данных не подключена');
     const token = mm[1], act = mm[2];
+    if (act === 'info') {
+      const [r] = await pool.query('SELECT c.status, v.name, v.type FROM checklists c JOIN vehicles v ON v.id=c.vehicle_id WHERE c.token_hash=?', [sha(token)]);
+      if (!r[0]) throw httpErr(404, 'Ссылка не найдена');
+      json(res, 200, { name: r[0].name, type: r[0].type, status: r[0].status }); return true;
+    }
     if (act === 'photo' && m === 'GET') {
       const { c, closed } = await masterLoad(token, req.headers['x-pin'], false);
       if (closed) throw httpErr(410, 'Ссылка закрыта');
@@ -462,16 +543,44 @@ async function route2(req, res, u, m) {
     }
     if (m !== 'POST') throw httpErr(405, 'method not allowed');
     const b = await readBody(req);
+    const lockedOf = c => Object.values(parseObj(c.entries)).some(e => e && e.state === 'done');
+    if (act === 'remove' || act === 'add') {
+      const { c, closed } = await masterLoad(token, b.pin, true);
+      if (closed) throw httpErr(410, 'Ссылка закрыта');
+      const price = C(b.price), note = T(b.note, 2000).trim();
+      if (price > 0 && !note) throw httpErr(400, 'Напишите комментарий: за платную работу нужно объяснение');
+      const snap = parseObj(c.snapshot), ent = parseObj(c.entries);
+      let kind, key = '', name, cat = 'Прочее';
+      if (act === 'remove') {
+        key = String(b.key || '');
+        const it = (snap.items || []).find(i => i.key === key);
+        if (!it) throw httpErr(400, 'Позиция не найдена');
+        if (ent[key] && ent[key].state === 'done') throw httpErr(409, 'Работа уже отмечена как сделанная');
+        kind = 'remove'; name = T(it.name, 200); cat = T(it.cat, 120) || 'Прочее';
+      } else {
+        name = T(b.item && b.item.name, 200).trim();
+        if (!name) throw httpErr(400, 'Введите название');
+        kind = 'add';
+      }
+      const id = crypto.randomBytes(12).toString('hex');
+      await pool.query('INSERT INTO checklist_requests(id,checklist_id,user_id,kind,item_key,name,cat,price,note) VALUES (?,?,?,?,?,?,?,?,?)', [id, c.id, c.user_id, kind, key, name, cat, price, note]);
+      if (!(price > 0)) reqPushOne(id).catch(() => {});
+      json(res, 200, { ok: true, request: { id, kind, name, price, status: 'pending', note } }); return true;
+    }
     if (act === 'open') {
       const { c, closed } = await masterLoad(token, b.pin, false);
       if (closed) { json(res, 200, { status: c.status }); return true; }
-      json(res, 200, { status: c.status, snapshot: parseObj(c.snapshot), entries: parseObj(c.entries) }); return true;
+      const [vr] = await pool.query('SELECT name,type,eng,plate,frame,ti_last,ins_end FROM vehicles WHERE id=?', [c.vehicle_id]);
+      const [rr] = await pool.query('SELECT id,kind,name,cat,price,note,status,owner_note FROM checklist_requests WHERE checklist_id=? ORDER BY created_at', [c.id]);
+      json(res, 200, { status: c.status, snapshot: parseObj(c.snapshot), entries: parseObj(c.entries), requests: rr,
+        vehicle: vr[0] ? { name: vr[0].name, type: vr[0].type, eng: vr[0].eng, plate: vr[0].plate || '', frame: vr[0].frame || '', tiLast: vr[0].ti_last, insEnd: vr[0].ins_end } : {} }); return true;
     }
     if (act === 'entry') {
       const { c, closed } = await masterLoad(token, b.pin, true);
       if (closed) throw httpErr(410, 'Ссылка закрыта');
       const snap = parseObj(c.snapshot), key = String(b.key || '');
       if (!(snap.items || []).some(i => i.key === key)) throw httpErr(400, 'Неизвестная позиция');
+      if (b.entry && b.entry.state === 'skip' && !T(b.entry.note, 2000).trim()) throw httpErr(400, 'Напишите, почему работа не сделана');
       const ent = parseObj(c.entries); ent[key] = cleanEntry(b.entry, snap);
       await pool.query('UPDATE checklists SET entries=? WHERE id=?', [JSON.stringify(ent), c.id]);
       json(res, 200, { ok: true }); return true;
@@ -514,11 +623,21 @@ async function route2(req, res, u, m) {
     const [r] = await pool.query('SELECT id,vehicle_id,status,created_at,finished_at,entries,snapshot FROM checklists WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [user.id]);
     json(res, 200, r.map(c => { const e = parseObj(c.entries), s = parseObj(c.snapshot); return { id: c.id, vehicleId: c.vehicle_id, status: c.status, created: c.created_at, finished: c.finished_at, done: Object.values(e).filter(x => x.state === 'done').length, total: (s.items || []).length, vehicle: (s.vehicle || {}).name || '' }; })); return true;
   }
-  const cm = /^\/api\/checklist\/([a-f0-9]{24})(?:\/(decide))?$/.exec(u);
+  const cm = /^\/api\/checklist\/([a-f0-9]{24})(?:\/(decide|edit))?$/.exec(u);
   if (cm) {
     const user = await needUser(req);
     const [r] = await pool.query('SELECT * FROM checklists WHERE id=? AND user_id=?', [cm[1], user.id]);
     const c = r[0]; if (!c) throw httpErr(404, 'Чек-лист не найден');
+    if (m === 'POST' && cm[2] === 'edit') {
+      const b = await readBody(req), ent = parseObj(c.entries), snap = parseObj(c.snapshot);
+      if (c.status !== 'open') throw httpErr(409, 'Лист уже закрыт для изменений');
+      if (Object.values(ent).some(e => e && e.state === 'done')) throw httpErr(409, 'Список зафиксирован: работа уже начата');
+      snap.items = snap.items || [];
+      if (b.remove) snap.items = snap.items.filter(i => i.key !== String(b.remove));
+      if (b.add && T(b.add.name, 200).trim()) snap.items.push({ key: 'o' + crypto.randomBytes(4).toString('hex'), name: T(b.add.name, 200).trim(), names: null, cat: T(b.add.cat, 120) || 'Прочее', kind: 'custom', why: '', prev: '', ex: [] });
+      await pool.query("UPDATE checklists SET snapshot=? WHERE id=?", [JSON.stringify(snap), c.id]);
+      json(res, 200, { ok: true }); return true;
+    }
     if (m === 'GET' && !cm[2]) { json(res, 200, { id: c.id, vehicleId: c.vehicle_id, status: c.status, finished: c.finished_at, snapshot: parseObj(c.snapshot), entries: parseObj(c.entries) }); return true; }
     if (m === 'POST' && cm[2] === 'decide') {
       const b = await readBody(req), ent = parseObj(c.entries);
@@ -529,19 +648,51 @@ async function route2(req, res, u, m) {
       json(res, 200, { ok: true, status }); return true;
     }
   }
+  if (u === '/api/requests' && m === 'GET') {
+    const user = await needUser(req);
+    const [r] = await pool.query("SELECT q.id,q.kind,q.name,q.cat,q.price,q.note,q.created_at,c.id AS cid,c.vehicle_id,c.snapshot FROM checklist_requests q JOIN checklists c ON c.id=q.checklist_id WHERE q.user_id=? AND q.status='pending' ORDER BY q.created_at", [user.id]);
+    json(res, 200, r.map(x => ({ id: x.id, kind: x.kind, name: x.name, cat: x.cat, price: x.price, note: x.note, created: x.created_at, checklistId: x.cid, vehicleId: x.vehicle_id, vehicleName: (parseObj(x.snapshot).vehicle || {}).name || '' }))); return true;
+  }
+  const rqm = /^\/api\/requests\/([a-f0-9]{24})$/.exec(u);
+  if (rqm && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req);
+    const [r] = await pool.query("SELECT q.*, c.snapshot, c.status AS cstatus FROM checklist_requests q JOIN checklists c ON c.id=q.checklist_id WHERE q.id=? AND q.user_id=?", [rqm[1], user.id]);
+    const q = r[0]; if (!q) throw httpErr(404, 'Запрос не найден');
+    if (q.status !== 'pending') throw httpErr(409, 'Запрос уже обработан');
+    const ownerNote = T(b.ownerNote, 300);
+    if (b.action === 'reject') {
+      await pool.query("UPDATE checklist_requests SET status='rejected', owner_note=?, decided_at=NOW() WHERE id=?", [ownerNote, q.id]);
+      json(res, 200, { ok: true, status: 'rejected' }); return true;
+    }
+    if (b.action !== 'accept') throw httpErr(400, 'Неизвестное действие');
+    if (q.cstatus === 'closed') throw httpErr(409, 'Лист уже закрыт');
+    const snap = parseObj(q.snapshot); snap.items = snap.items || [];
+    if (q.kind === 'remove') {
+      const before = snap.items.length; snap.items = snap.items.filter(i => i.key !== q.item_key);
+      if (snap.items.length === before) throw httpErr(409, 'Позиция уже удалена из листа');
+    } else {
+      snap.items.push({ key: 'r' + q.id.slice(0, 10), name: q.name, names: null, cat: q.cat || 'Прочее', kind: 'custom', why: q.note || '', prev: '', ex: [] });
+    }
+    await pool.query("UPDATE checklists SET snapshot=? WHERE id=?", [JSON.stringify(snap), q.checklist_id]);
+    await pool.query("UPDATE checklist_requests SET status='accepted', owner_note=?, decided_at=NOW() WHERE id=?", [ownerNote, q.id]);
+    json(res, 200, { ok: true, status: 'accepted' }); return true;
+  }
   // push
   if (u === '/api/push/key' && m === 'GET') { await needUser(req); json(res, 200, { enabled: !!webpush && !!SET.vapid_pub, publicKey: SET.vapid_pub || '' }); return true; }
   if (u === '/api/push/prefs') {
     const user = await needUser(req);
     if (m === 'GET') {
-      const [r] = await pool.query('SELECT push_on,push_days,push_hour,push_tz FROM users WHERE id=?', [user.id]);
+      const [r] = await pool.query('SELECT push_on,push_days,push_hour,push_tz,push_mode,push_mdays FROM users WHERE id=?', [user.id]);
       const [n] = await pool.query('SELECT COUNT(*) n FROM push_subs WHERE user_id=?', [user.id]);
-      json(res, 200, { on: !!r[0].push_on, days: r[0].push_days, hour: r[0].push_hour, tz: r[0].push_tz, devices: n[0].n }); return true;
+      json(res, 200, { on: !!r[0].push_on, days: r[0].push_days, hour: r[0].push_hour, tz: r[0].push_tz, mode: r[0].push_mode, mdays: r[0].push_mdays, devices: n[0].n }); return true;
     }
     if (m === 'PUT') {
       const b = await readBody(req);
       const days = String(b.days || '').split(',').filter(d => /^[0-6]$/.test(d)).join(',') || '1,4';
-      await pool.query("UPDATE users SET push_on=?, push_days=?, push_hour=?, push_tz=COALESCE(NULLIF(?,''),push_tz) WHERE id=?", [b.on ? 1 : 0, days, Math.min(23, Math.max(0, I(b.hour))), T(b.tz, 60), user.id]);
+      const mode = b.mode === 'monthly' ? 'monthly' : 'weekly';
+      const mdays = [...new Set(String(b.mdays || '').split(',').map(x => +x).filter(x => x >= 1 && x <= 31))].sort((a, b2) => a - b2);
+      if (mode === 'monthly' && (!mdays.length || mdays.length > 4)) throw httpErr(400, 'Выберите от 1 до 4 чисел месяца');
+      await pool.query("UPDATE users SET push_on=?, push_mode=?, push_days=?, push_mdays=?, push_hour=?, push_tz=COALESCE(NULLIF(?,''),push_tz) WHERE id=?", [b.on ? 1 : 0, mode, days, mdays.join(','), Math.min(23, Math.max(0, I(b.hour))), T(b.tz, 60), user.id]);
       json(res, 200, { ok: true }); return true;
     }
   }
@@ -555,6 +706,32 @@ async function route2(req, res, u, m) {
   if (u === '/api/push/unsubscribe' && m === 'POST') {
     const user = await needUser(req), b = await readBody(req);
     await pool.query('DELETE FROM push_subs WHERE user_id=? AND ep_hash=?', [user.id, sha(String(b.endpoint || ''))]); json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/catalog' && m === 'GET') { json(res, 200, await catalogRows(false)); return true; }
+  if (u === '/api/admin/items') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    if (m === 'GET') { json(res, 200, await catalogRows(true)); return true; }
+    if (m === 'POST') {
+      const b = await readBody(req), vtype = String(b.vtype || '');
+      if (!VT.includes(vtype)) throw httpErr(400, 'Выберите тип транспорта');
+      const cat = T(b.cat, 120).trim() || 'Прочее', src = b.names || {}, ru = T(src.ru, 200).trim();
+      if (!ru) throw httpErr(400, 'Укажите название на русском');
+      const names = { ru, en: T(src.en, 200).trim() || ru, uk: T(src.uk, 200).trim() || ru, ja: T(src.ja, 200).trim() || ru };
+      const km = Math.max(0, I(b.km)), mo = Math.max(0, I(b.mo)), id = crypto.randomBytes(12).toString('hex');
+      await pool.query('INSERT INTO custom_items(id,vtype,category,names,km,mo) VALUES (?,?,?,?,?,?)', [id, vtype, cat, JSON.stringify(names), km, mo]);
+      const [vs] = await pool.query('SELECT id FROM vehicles WHERE type=?', [vtype]);
+      if (vs.length) await pool.query('INSERT INTO parts(id,vehicle_id,category,name,interval_km,interval_months,sort_order) VALUES ?',
+        [vs.map(x => [crypto.randomBytes(12).toString('hex'), x.id, cat, ru, km, mo, 9999])]);
+      json(res, 200, { ok: true, id, added: vs.length }); return true;
+    }
+    throw httpErr(405, 'method not allowed');
+  }
+  const ai = /^\/api\/admin\/items\/([a-f0-9]{24})$/.exec(u);
+  if (ai && m === 'POST') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const b = await readBody(req);
+    await pool.query('UPDATE custom_items SET archived=? WHERE id=?', [b.archived ? 1 : 0, ai[1]]);
+    json(res, 200, { ok: true }); return true;
   }
   if (u === '/api/push/test' && m === 'POST') {
     const user = await needUser(req), [r] = await pool.query('SELECT lang FROM users WHERE id=?', [user.id]);
@@ -586,7 +763,7 @@ async function getState(uid) {
   return {
     cur: u[0] ? u[0].cur_vehicle : '',
     v: vs.map(v => ({
-      id: v.id, name: v.name, type: v.type, buyDate: v.buy_date || '', buyKm: v.buy_km, price: v.buy_price, unit: v.unit || 'km', odo: v.odo, off: v.odo_offset, cc: v.currency,
+      id: v.id, name: v.name, type: v.type, buyDate: v.buy_date || '', eng: v.eng, plate: v.plate || '', frame: v.frame || '', tiLast: v.ti_last || '', buyKm: v.buy_km, price: v.buy_price, unit: v.unit || 'km', odo: v.odo, off: v.odo_offset, cc: v.currency,
       docs: { ins: { end: v.ins_end || '', note: v.ins_note }, ti: { end: v.ti_end || '', note: v.ti_note } },
       items: parts[v.id] || [], log: logs[v.id] || [], panels: panels[v.id] || [], plans: plans[v.id] || []
     }))
@@ -616,6 +793,7 @@ async function putState(uid, s) {
            ti_end=VALUES(ti_end),ti_note=VALUES(ti_note),sort_order=VALUES(sort_order),unit=VALUES(unit)`,
         [id, uid, T(v.name, 200) || 'Без названия', T(v.type, 16) || 'other', D(v.buyDate), I(v.buyKm), C(v.price), I(v.odo), I(v.off),
          T(v.cc, 8) || '¥', D(ins.end), T(ins.note, 500), D(ti.end), T(ti.note, 500), order++, ['km', 'mi'].includes(v.unit) ? v.unit : 'km']);
+      await c.query('UPDATE vehicles SET eng=?, plate=?, frame=?, ti_last=? WHERE id=? AND user_id=?', [IN(v.eng), T(v.plate, 20), T(v.frame, 40), D(v.tiLast), id, uid]);
       await c.query('DELETE FROM parts WHERE vehicle_id=?', [id]);          // история удаляется каскадом
       await c.query('DELETE FROM mileage_log WHERE vehicle_id=?', [id]);
       await c.query('DELETE FROM panel_changes WHERE vehicle_id=?', [id]);
