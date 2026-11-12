@@ -1,5 +1,5 @@
 'use strict';
-const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), vm = require('vm'), mysql = require('mysql2/promise');
+const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), vm = require('vm'), zlib = require('zlib'), mysql = require('mysql2/promise');
 
 const PORT = +process.env.PORT || 3000;
 const CONFIG_PATH = process.env.CONFIG_PATH || '/config/db.json';
@@ -510,8 +510,7 @@ async function reqTick() {
 async function route2(req, res, u, m) {
   // страница мастера
   if (m === 'GET' && /^\/m\/[a-f0-9]{24}$/.test(u)) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
-    fs.createReadStream(path.join(__dirname, 'public', 'master.html')).pipe(res); return true;
+    sendFile(req, res, path.join(__dirname, 'public', 'master.html'), 'text/html; charset=utf-8', 'no-cache', { 'Referrer-Policy': 'no-referrer' }); return true;
   }
   const mm = /^\/api\/m\/([a-f0-9]{24})\/(info|open|entry|finish|photo|remove|add)(?:\/([a-f0-9]{16,32}))?$/.exec(u);
   if (mm) {
@@ -846,6 +845,10 @@ const readRaw = (req, max) => new Promise((ok, fail) => {
 });
 const STATIC = {
   '/i18n.js': ['i18n.js', 'application/javascript; charset=utf-8'],
+  '/app.js': ['app.js', 'application/javascript; charset=utf-8'],
+  '/master.js': ['master.js', 'application/javascript; charset=utf-8'],
+  '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/master.css': ['master.css', 'text/css; charset=utf-8'],
   '/qr.js': ['qr.js', 'application/javascript; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/sw.js': ['sw.js', 'application/javascript; charset=utf-8'],
@@ -853,6 +856,27 @@ const STATIC = {
   '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'], '/icon.svg': ['icon.svg', 'image/svg+xml']
 };
 const INDEX = path.join(__dirname, 'public', 'index.html');
+
+// Отдача статики: gzip для текста и ETag, чтобы браузер не скачивал файлы заново (ответ 304)
+const FCACHE = new Map();
+function sendFile(req, res, file, type, cache, extra) {
+  let st; try { st = fs.statSync(file); } catch (_) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
+  let c = FCACHE.get(file);
+  if (!c || c.mtime !== st.mtimeMs || c.size !== st.size) {
+    const raw = fs.readFileSync(file), text = /^(text\/|application\/(javascript|manifest|json)|image\/svg)/.test(type);
+    c = { mtime: st.mtimeMs, size: st.size, raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"',
+          gz: text && raw.length > 512 ? zlib.gzipSync(raw, { level: 9 }) : null };
+    FCACHE.set(file, c);
+  }
+  const h = Object.assign({ 'Content-Type': type, 'Cache-Control': cache, ETag: c.etag, Vary: 'Accept-Encoding' }, extra || {});
+  const inm = String(req.headers['if-none-match'] || '').split(',').map(x => x.trim().replace(/^W\//, ''));
+  if (inm.includes(c.etag)) { res.writeHead(304, h); return res.end(); }
+  const gz = c.gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  const body = gz ? c.gz : c.raw;
+  if (gz) h['Content-Encoding'] = 'gzip';
+  h['Content-Length'] = body.length;
+  res.writeHead(200, h); res.end(req.method === 'HEAD' ? undefined : body);
+}
 
 async function route(req, res) {
   const u = req.url.split('?')[0], m = req.method;
@@ -940,10 +964,7 @@ async function route(req, res) {
     return res.end(r[0].data);
   }
   if (STATIC[u]) {
-    const f = path.join(__dirname, 'public', STATIC[u][0]);
-    if (!fs.existsSync(f)) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': STATIC[u][1], 'Cache-Control': STATIC[u][1].startsWith('image/png') ? 'public, max-age=86400' : 'no-cache' });
-    return fs.createReadStream(f).pipe(res);
+    return sendFile(req, res, path.join(__dirname, 'public', STATIC[u][0]), STATIC[u][1], STATIC[u][1].startsWith('image/png') ? 'public, max-age=86400' : 'no-cache');
   }
   if (u === '/api/state') {
     if (!ready) throw httpErr(503, 'База данных не подключена');
@@ -953,8 +974,7 @@ async function route(req, res) {
     throw httpErr(405, 'method not allowed');
   }
   if (u === '/' || u === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return fs.createReadStream(INDEX).pipe(res);
+    return sendFile(req, res, INDEX, 'text/html; charset=utf-8', 'no-cache');
   }
   res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found');
 }

@@ -13,7 +13,7 @@ services:
     image: node:20-alpine
     restart: on-failure
     working_dir: /app
-    command: sh -c "npm install --omit=dev --no-audit --no-fund || true; node server.js"
+    command: sh -c "cmp -s package.json node_modules/.pkg.json || { npm install --omit=dev --no-audit --no-fund && cp package.json node_modules/.pkg.json; }; node server.js"
     stop_grace_period: 30s
     depends_on:
       - db
