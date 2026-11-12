@@ -171,6 +171,35 @@ const SCHEMA = [
   decided_at DATETIME NULL,
   INDEX idx_req_cl (checklist_id),
   INDEX idx_req_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS support_msgs(
+  id VARCHAR(24) NOT NULL PRIMARY KEY,
+  user_id INT NOT NULL,
+  subject VARCHAR(120) NOT NULL DEFAULT '',
+  body TEXT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'new',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_sup_user (user_id),
+  INDEX idx_sup_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS shop_ratings(
+  id VARCHAR(24) NOT NULL PRIMARY KEY,
+  user_id INT NOT NULL,
+  checklist_id VARCHAR(32) NOT NULL,
+  shop_link VARCHAR(500) NOT NULL DEFAULT '',
+  mood TINYINT NOT NULL,
+  comment TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_rate_cl (checklist_id),
+  INDEX idx_rate_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+`CREATE TABLE IF NOT EXISTS admin_log(
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  admin_id INT NOT NULL,
+  action VARCHAR(60) NOT NULL,
+  target VARCHAR(200) NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_log_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
@@ -201,6 +230,12 @@ async function initSchema(p) {
   await addCol(p, 'vehicles', 'plate', "VARCHAR(20) NOT NULL DEFAULT ''");
   await addCol(p, 'vehicles', 'frame', "VARCHAR(40) NOT NULL DEFAULT ''");
   await addCol(p, 'vehicles', 'ti_last', 'DATE NULL');
+  await addCol(p, 'users', 'last_login', 'DATETIME NULL');
+  await addCol(p, 'users', 'display_name', "VARCHAR(60) NOT NULL DEFAULT ''");
+  await addCol(p, 'users', 'avatar', "VARCHAR(20) NOT NULL DEFAULT ''");
+  await addCol(p, 'users', 'blocked', 'TINYINT NOT NULL DEFAULT 0');
+  await addCol(p, 'support_msgs', 'from_admin', 'TINYINT NOT NULL DEFAULT 0');
+  await addCol(p, 'support_msgs', 'seen', 'TINYINT NOT NULL DEFAULT 0');
   await addCol(p, 'users', 'push_req_hour', "VARCHAR(16) NOT NULL DEFAULT ''");
   await addCol(p, 'part_history', 'details', 'TEXT NULL');
 }
@@ -283,6 +318,7 @@ const checkPw = (pw, stored) => {
 const sha = t => crypto.createHash('sha256').update(t).digest('hex');
 const fails = new Map();
 async function newSession(res, uid) {
+  await pool.query('UPDATE users SET last_login=NOW() WHERE id=?', [uid]);
   const t = crypto.randomBytes(32).toString('hex');
   await pool.query('DELETE FROM sessions WHERE expires<NOW()');
   await pool.query('INSERT INTO sessions(token_hash,user_id,expires) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 30 DAY))', [sha(t), uid]);
@@ -316,7 +352,18 @@ const CKJ = x => { if (!Array.isArray(x)) return null; const a = x.slice(0, 50).
 const parseX = s => { try { return s ? JSON.parse(s) : {}; } catch (_) { return {}; } };
 
 // ================= настройки, push, чек-листы мастера =================
-let SET = {}, webpush = null, tickStarted = false, I18N_TR = null;
+let SET = {}
+const LIM = () => ({ perDay: SET.msg_per_day !== undefined ? +SET.msg_per_day : 3, gap: SET.msg_gap_min !== undefined ? +SET.msg_gap_min : 10,
+  open: SET.msg_open_max !== undefined ? +SET.msg_open_max : 5, ratingsOn: SET.ratings_on !== '0', minComment: +(SET.rating_min_comment || 0) });
+const logAdmin = (adminId, action, target) => pool.query('INSERT INTO admin_log(admin_id,action,target) VALUES (?,?,?)', [adminId, action, String(target || '').slice(0, 200)]).catch(() => {});
+const MOODS = [1, 2, 3];
+function shopLinkOf(ent) {
+  for (const e of Object.values(ent || {})) {
+    if (e && e.review === 'accepted' && e.note) { const x = /https?:\/\/[^\s]+/.exec(e.note); if (x) return x[0].slice(0, 500); }
+  }
+  return '';
+}
+let webpush = null, tickStarted = false, I18N_TR = null;
 async function loadSettings() { const [r] = await pool.query('SELECT k,v FROM settings'); SET = {}; r.forEach(x => { SET[x.k] = x.v; }); }
 async function setSetting(k, v) { await pool.query('INSERT INTO settings(k,v) VALUES (?,?) ON DUPLICATE KEY UPDATE v=VALUES(v)', [k, String(v)]); SET[k] = String(v); }
 const ipOf = req => String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '');
@@ -706,6 +753,225 @@ async function route2(req, res, u, m) {
     const user = await needUser(req), b = await readBody(req);
     await pool.query('DELETE FROM push_subs WHERE user_id=? AND ep_hash=?', [user.id, sha(String(b.endpoint || ''))]); json(res, 200, { ok: true }); return true;
   }
+  if (u === '/api/admin/users' && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const [us] = await pool.query('SELECT id,login,is_admin,lang,created_at,last_login,blocked,display_name FROM users ORDER BY id');
+    const [vs] = await pool.query('SELECT id,user_id,name,type,odo,unit FROM vehicles ORDER BY user_id, sort_order');
+    const [oc] = await pool.query("SELECT COUNT(*) n FROM checklists WHERE status='open'");
+    const [pr] = await pool.query("SELECT COUNT(*) n FROM checklist_requests WHERE status='pending'");
+    json(res, 200, { me: user.id, users: us.map(x => ({ id: x.id, login: x.login, admin: !!x.is_admin, lang: x.lang || '', created: x.created_at,
+      lastLogin: x.last_login, blocked: !!x.blocked, displayName: x.display_name || '',
+      vehicles: vs.filter(v => v.user_id === x.id).map(v => ({ id: v.id, name: v.name, type: v.type, odo: v.odo, unit: v.unit || 'km' })) })),
+      openSheets: oc[0].n, pendingRequests: pr[0].n }); return true;
+  }
+  const au = /^\/api\/admin\/users\/(\d+)(\/delete)?$/.exec(u);
+  if (au && m === 'POST') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const id = +au[1], b = await readBody(req);
+    const [r] = await pool.query('SELECT id,login,is_admin FROM users WHERE id=?', [id]);
+    if (!r[0]) throw httpErr(404, 'Пользователь не найден');
+    if (au[2]) {
+      if (id === user.id) throw httpErr(400, 'Нельзя удалить самого себя');
+      await pool.query('DELETE FROM checklist_requests WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM checklists WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM photos WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM push_subs WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM shop_ratings WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM support_msgs WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM vehicles WHERE user_id=?', [id]);
+      await pool.query('DELETE FROM users WHERE id=?', [id]);
+      await logAdmin(user.id, 'delete_user', r[0].login);
+      json(res, 200, { ok: true }); return true;
+    }
+    const sets = [], vals = [], changed = [];
+    if (b.login !== undefined) {
+      const login = String(b.login).trim();
+      if (login.length < 3 || login.length > 64) throw httpErr(400, 'Логин: от 3 до 64 символов');
+      sets.push('login=?'); vals.push(login); changed.push('login');
+    }
+    if (b.lang !== undefined) { sets.push('lang=?'); vals.push(['ru', 'en', 'uk', 'ja'].includes(b.lang) ? b.lang : ''); changed.push('lang'); }
+    if (b.displayName !== undefined) { sets.push('display_name=?'); vals.push(T(b.displayName, 60).trim()); changed.push('name'); }
+    if (b.admin !== undefined) {
+      const makeAdmin = !!b.admin;
+      if (!makeAdmin && r[0].is_admin) {
+        const [c] = await pool.query('SELECT COUNT(*) n FROM users WHERE is_admin=1');
+        if (c[0].n <= 1) throw httpErr(400, 'Нельзя снять права у последнего администратора');
+      }
+      sets.push('is_admin=?'); vals.push(makeAdmin ? 1 : 0); changed.push(makeAdmin ? 'admin+' : 'admin-');
+    }
+    if (b.blocked !== undefined) {
+      if (id === user.id && b.blocked) throw httpErr(400, 'Нельзя заблокировать самого себя');
+      sets.push('blocked=?'); vals.push(b.blocked ? 1 : 0); changed.push(b.blocked ? 'block' : 'unblock');
+      if (b.blocked) await pool.query('DELETE FROM sessions WHERE user_id=?', [id]);
+    }
+    if (b.password) {
+      const pw = String(b.password);
+      if (pw.length < 6) throw httpErr(400, 'Пароль: не короче 6 символов');
+      sets.push('pass_hash=?'); vals.push(hashPw(pw)); changed.push('password');
+    }
+    if (sets.length) {
+      try { await pool.query(`UPDATE users SET ${sets.join(',')} WHERE id=?`, [...vals, id]); }
+      catch (e) { if (e.code === 'ER_DUP_ENTRY') throw httpErr(409, 'Такой логин уже занят'); throw e; }
+    }
+    if (b.password) await pool.query('DELETE FROM sessions WHERE user_id=?', [id]);
+    if (changed.length) await logAdmin(user.id, 'edit_user:' + changed.join(','), r[0].login);
+    json(res, 200, { ok: true }); return true;
+  }
+  const ad = /^\/api\/admin\/users\/(\d+)\/detail$/.exec(u);
+  if (ad && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const id = +ad[1];
+    const [r] = await pool.query('SELECT id,login,is_admin,lang,created_at,last_login,blocked,display_name FROM users WHERE id=?', [id]);
+    if (!r[0]) throw httpErr(404, 'Пользователь не найден');
+    const [vs] = await pool.query('SELECT id,name,type,odo,unit FROM vehicles WHERE user_id=? ORDER BY sort_order', [id]);
+    const [rt] = await pool.query('SELECT id,shop_link,mood,comment,created_at FROM shop_ratings WHERE user_id=? ORDER BY created_at DESC LIMIT 20', [id]);
+    const [sp] = await pool.query('SELECT id,subject,body,status,created_at FROM support_msgs WHERE user_id=? ORDER BY created_at DESC LIMIT 20', [id]);
+    const [oc] = await pool.query("SELECT COUNT(*) n FROM checklists WHERE user_id=? AND status='open'", [id]);
+    json(res, 200, { user: { id: r[0].id, login: r[0].login, admin: !!r[0].is_admin, lang: r[0].lang || '', created: r[0].created_at, lastLogin: r[0].last_login, blocked: !!r[0].blocked, displayName: r[0].display_name || '' },
+      vehicles: vs.map(v => ({ id: v.id, name: v.name, type: v.type, odo: v.odo, unit: v.unit || 'km' })), ratings: rt, support: sp, openSheets: oc[0].n }); return true;
+  }
+  const av = /^\/api\/admin\/vehicles\/([a-zA-Z0-9]{1,32})\/delete$/.exec(u);
+  if (av && m === 'POST') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const [v] = await pool.query('SELECT id FROM vehicles WHERE id=?', [av[1]]);
+    if (!v[0]) throw httpErr(404, 'Транспорт не найден');
+    await pool.query('DELETE FROM checklist_requests WHERE checklist_id IN (SELECT id FROM checklists WHERE vehicle_id=?)', [av[1]]);
+    await pool.query('DELETE FROM checklists WHERE vehicle_id=?', [av[1]]);
+    await pool.query('DELETE FROM vehicles WHERE id=?', [av[1]]);
+    json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/profile') {
+    const user = await needUser(req);
+    if (m === 'GET') {
+      const [r] = await pool.query('SELECT login,lang,created_at,last_login,display_name,avatar FROM users WHERE id=?', [user.id]);
+      const [vc] = await pool.query('SELECT COUNT(*) n FROM vehicles WHERE user_id=?', [user.id]);
+      const [sp] = await pool.query('SELECT id,subject,body,status,created_at FROM support_msgs WHERE user_id=? ORDER BY created_at DESC LIMIT 20', [user.id]);
+      const [rt] = await pool.query('SELECT r.id,r.shop_link,r.mood,r.comment,r.created_at,v.name AS vehicle FROM shop_ratings r JOIN checklists c ON c.id=r.checklist_id JOIN vehicles v ON v.id=c.vehicle_id WHERE r.user_id=? ORDER BY r.created_at DESC', [user.id]);
+      const [d] = await pool.query("SELECT COUNT(*) n FROM support_msgs WHERE user_id=? AND created_at > NOW() - INTERVAL 1 DAY", [user.id]);
+      const [o] = await pool.query("SELECT COUNT(*) n FROM support_msgs WHERE user_id=? AND status<>'closed'", [user.id]);
+      const L = LIM();
+      const shops = {};
+      rt.forEach(x => { const k = x.shop_link || '—'; (shops[k] = shops[k] || { link: x.shop_link, sum: 0, n: 0 }); shops[k].sum += x.mood; shops[k].n++; });
+      json(res, 200, { login: r[0].login, displayName: r[0].display_name || '', avatar: r[0].avatar || '', lang: r[0].lang || '', created: r[0].created_at, lastLogin: r[0].last_login,
+        vehicles: vc[0].n, support: sp, ratings: rt, shops: Object.values(shops).map(x => ({ link: x.link, avg: +(x.sum / x.n).toFixed(2), n: x.n })),
+        limits: { perDay: L.perDay, usedToday: d[0].n, gap: L.gap, open: L.open, openNow: o[0].n } }); return true;
+    }
+    if (m === 'POST') {
+      const b = await readBody(req);
+      const av = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'].includes(b.avatar) ? b.avatar : '';
+      const lang = ['ru', 'en', 'uk', 'ja'].includes(b.lang) ? b.lang : '';
+      await pool.query('UPDATE users SET display_name=?, avatar=?, lang=? WHERE id=?', [T(b.displayName, 60).trim(), av, lang, user.id]);
+      json(res, 200, { ok: true }); return true;
+    }
+  }
+  if (u === '/api/support' && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req), L = LIM();
+    const subject = T(b.subject, 120).trim() || 'Сообщение', body = T(b.body, 2000).trim();
+    if (!body) throw httpErr(400, 'Напишите сообщение');
+    const [d] = await pool.query("SELECT COUNT(*) n FROM support_msgs WHERE user_id=? AND created_at > NOW() - INTERVAL 1 DAY", [user.id]);
+    if (d[0].n >= L.perDay) throw httpErr(429, `Лимит: не больше ${L.perDay} сообщений в сутки`);
+    const [g] = await pool.query('SELECT TIMESTAMPDIFF(MINUTE, MAX(created_at), NOW()) mins FROM support_msgs WHERE user_id=?', [user.id]);
+    if (L.gap > 0 && g[0].mins !== null && g[0].mins < L.gap) throw httpErr(429, `Подождите ${L.gap - g[0].mins} мин. перед следующим сообщением`);
+    const [o] = await pool.query("SELECT COUNT(*) n FROM support_msgs WHERE user_id=? AND status<>'closed'", [user.id]);
+    if (o[0].n >= L.open) throw httpErr(429, `Открытых обращений может быть не больше ${L.open}. Дождитесь ответа.`);
+    await pool.query('INSERT INTO support_msgs(id,user_id,subject,body) VALUES (?,?,?,?)', [crypto.randomBytes(12).toString('hex'), user.id, subject, body]);
+    json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/ratings' && m === 'GET') {
+    const user = await needUser(req);
+    const [cl] = await pool.query("SELECT c.id,c.entries,c.finished_at,v.name AS vehicle FROM checklists c JOIN vehicles v ON v.id=c.vehicle_id WHERE c.user_id=? AND c.status='accepted' AND c.id NOT IN (SELECT checklist_id FROM shop_ratings WHERE user_id=?) ORDER BY c.finished_at DESC LIMIT 30", [user.id, user.id]);
+    const pending = cl.map(c => ({ checklistId: c.id, vehicle: c.vehicle, date: c.finished_at, link: shopLinkOf(parseObj(c.entries)) })).filter(x => x.link);
+    json(res, 200, { pending, enabled: LIM().ratingsOn }); return true;
+  }
+  if (u === '/api/ratings' && m === 'POST') {
+    const user = await needUser(req), b = await readBody(req), L = LIM();
+    if (!L.ratingsOn) throw httpErr(403, 'Оценки выключены администратором');
+    const mood = +b.mood; if (!MOODS.includes(mood)) throw httpErr(400, 'Выберите оценку');
+    const comment = T(b.comment, 1000).trim();
+    if (L.minComment > 0 && comment.length < L.minComment) throw httpErr(400, `Комментарий: минимум ${L.minComment} символов`);
+    const [c] = await pool.query("SELECT id,entries FROM checklists WHERE id=? AND user_id=? AND status='accepted'", [T(b.checklistId, 32), user.id]);
+    if (!c[0]) throw httpErr(404, 'Работа не найдена или ещё не принята');
+    const link = shopLinkOf(parseObj(c[0].entries));
+    if (!link) throw httpErr(400, 'Оценка доступна, когда у мастерской есть ссылка на карты');
+    try { await pool.query('INSERT INTO shop_ratings(id,user_id,checklist_id,shop_link,mood,comment) VALUES (?,?,?,?,?,?)', [crypto.randomBytes(12).toString('hex'), user.id, c[0].id, link, mood, comment]); }
+    catch (e) { if (e.code === 'ER_DUP_ENTRY') throw httpErr(409, 'Эта работа уже оценена'); throw e; }
+    json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/admin/overview' && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const q = async sql => (await pool.query(sql))[0][0].n;
+    json(res, 200, { users: await q('SELECT COUNT(*) n FROM users'), vehicles: await q('SELECT COUNT(*) n FROM vehicles'),
+      openSheets: await q("SELECT COUNT(*) n FROM checklists WHERE status='open'"), pendingRequests: await q("SELECT COUNT(*) n FROM checklist_requests WHERE status='pending'"),
+      supportNew: await q("SELECT COUNT(*) n FROM support_msgs WHERE status='new'"), ratings: await q('SELECT COUNT(*) n FROM shop_ratings'),
+      blocked: await q('SELECT COUNT(*) n FROM users WHERE blocked=1'), limits: LIM() }); return true;
+  }
+  if (u === '/api/admin/limits') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    if (m === 'GET') { json(res, 200, LIM()); return true; }
+    if (m === 'PUT') {
+      const b = await readBody(req);
+      const perDay = Math.min(100, Math.max(0, I(b.perDay))), gap = Math.min(1440, Math.max(0, I(b.gap))), open = Math.min(50, Math.max(0, I(b.open)));
+      await setSetting('msg_per_day', perDay); await setSetting('msg_gap_min', gap); await setSetting('msg_open_max', open);
+      await setSetting('ratings_on', b.ratingsOn ? '1' : '0'); await setSetting('rating_min_comment', Math.min(500, Math.max(0, I(b.minComment))));
+      await logAdmin(user.id, 'edit_limits', `perDay=${perDay} gap=${gap} open=${open} ratings=${b.ratingsOn ? 1 : 0}`);
+      json(res, 200, { ok: true, limits: LIM() }); return true;
+    }
+  }
+  if (u === '/api/admin/support' && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const [r] = await pool.query('SELECT s.id,s.subject,s.body,s.status,s.created_at,s.user_id,u.login FROM support_msgs s JOIN users u ON u.id=s.user_id ORDER BY (s.status="new") DESC, s.created_at DESC LIMIT 200');
+    json(res, 200, r); return true;
+  }
+  const asp = /^\/api\/admin\/support\/([a-f0-9]{24})$/.exec(u);
+  if (asp && m === 'POST') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const b = await readBody(req), st = ['new', 'read', 'closed'].includes(b.status) ? b.status : 'read';
+    await pool.query('UPDATE support_msgs SET status=? WHERE id=?', [st, asp[1]]);
+    await logAdmin(user.id, 'support_' + st, asp[1]);
+    json(res, 200, { ok: true }); return true;
+  }
+  if (u === '/api/admin/log' && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const [r] = await pool.query('SELECT l.action,l.target,l.created_at,u.login FROM admin_log l LEFT JOIN users u ON u.id=l.admin_id ORDER BY l.id DESC LIMIT 200');
+    json(res, 200, r); return true;
+  }
+  if (u === '/api/support/thread' && m === 'GET') {
+    const user = await needUser(req);
+    const [r] = await pool.query('SELECT id,body,from_admin,created_at FROM support_msgs WHERE user_id=? ORDER BY created_at, id LIMIT 300', [user.id]);
+    await pool.query('UPDATE support_msgs SET seen=1 WHERE user_id=? AND from_admin=1 AND seen=0', [user.id]);
+    json(res, 200, r.map(x => ({ id: x.id, body: x.body, admin: !!x.from_admin, created: x.created_at }))); return true;
+  }
+  if (u === '/api/admin/threads' && m === 'GET') {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const [r] = await pool.query("SELECT u.id,u.login,u.display_name,MAX(s.created_at) last,SUM(CASE WHEN s.from_admin=0 AND s.status='new' THEN 1 ELSE 0 END) unread,COUNT(*) n FROM support_msgs s JOIN users u ON u.id=s.user_id GROUP BY u.id,u.login,u.display_name ORDER BY last DESC LIMIT 200");
+    json(res, 200, r.map(x => ({ userId: x.id, login: x.login, name: x.display_name || '', last: x.last, unread: +x.unread || 0, count: +x.n }))); return true;
+  }
+  const th = /^\/api\/admin\/threads\/(\d+)(\/reply|\/close)?$/.exec(u);
+  if (th) {
+    const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
+    const uid = +th[1], act = th[2] || '';
+    const [t] = await pool.query('SELECT id,login FROM users WHERE id=?', [uid]);
+    if (!t[0]) throw httpErr(404, 'Пользователь не найден');
+    if (!act && m === 'GET') {
+      const [r] = await pool.query('SELECT id,body,from_admin,created_at FROM support_msgs WHERE user_id=? ORDER BY created_at, id LIMIT 300', [uid]);
+      await pool.query("UPDATE support_msgs SET status='read' WHERE user_id=? AND from_admin=0 AND status='new'", [uid]);
+      json(res, 200, { login: t[0].login, messages: r.map(x => ({ id: x.id, body: x.body, admin: !!x.from_admin, created: x.created_at })) }); return true;
+    }
+    if (act === '/reply' && m === 'POST') {
+      const b = await readBody(req), body = T(b.body, 2000).trim();
+      if (!body) throw httpErr(400, 'Напишите ответ');
+      await pool.query("INSERT INTO support_msgs(id,user_id,subject,body,from_admin,status,seen) VALUES (?,?,?,?,1,'read',0)", [crypto.randomBytes(12).toString('hex'), uid, 'Поддержка', body]);
+      await logAdmin(user.id, 'support_reply', t[0].login);
+      const [pu] = await pool.query('SELECT push_on FROM users WHERE id=?', [uid]);
+      if (pu[0] && pu[0].push_on) sendPush(uid, { title: 'Garage Journal · Поддержка', body: body.slice(0, 140), url: './#support', tag: 'support' }).catch(() => {});
+      json(res, 200, { ok: true }); return true;
+    }
+    if (act === '/close' && m === 'POST') {
+      await pool.query("UPDATE support_msgs SET status='closed' WHERE user_id=?", [uid]);
+      await logAdmin(user.id, 'support_close', t[0].login);
+      json(res, 200, { ok: true }); return true;
+    }
+  }
   if (u === '/api/catalog' && m === 'GET') { json(res, 200, await catalogRows(false)); return true; }
   if (u === '/api/admin/items') {
     const user = await needUser(req); if (!user.admin) throw httpErr(403, 'Только администратор');
@@ -923,6 +1189,7 @@ async function route(req, res) {
     const ik = 'ip|' + ipOf(req), fi = fails.get(ik);
     if ((f && f.until > Date.now()) || (fi && fi.until > Date.now())) throw httpErr(429, 'Слишком много попыток, подождите минуту');
     const [r] = await pool.query('SELECT * FROM users WHERE login=?', [login]);
+    if (r[0] && r[0].blocked && checkPw(String(b.password || ''), r[0].pass_hash)) throw httpErr(403, 'Аккаунт заблокирован администратором');
     if (!r[0] || !checkPw(String(b.password || ''), r[0].pass_hash)) {
       const n = (f ? f.n : 0) + 1; fails.set(key, { n, until: n >= 5 ? Date.now() + 60000 : 0 });
       const ni = (fi && fi.t > Date.now() - 6e5 ? fi.n : 0) + 1; fails.set(ik, { n: ni, t: Date.now(), until: ni >= 30 ? Date.now() + 6e5 : 0 });

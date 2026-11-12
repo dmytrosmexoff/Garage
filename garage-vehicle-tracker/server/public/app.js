@@ -183,6 +183,7 @@ async function installApp(){
 const CE_ICON='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 24h6v-6h6v-4h12v4h6v6h2v14h-6v4H16v-4H8z"/><path d="M20 30l4 4 7-8" stroke-width="3.2"/></svg>';
 function promoBanner(){
   if(!ME)return '';
+  if(RATE.pending&&RATE.pending.length)return `<div class="promo"><span>Оцените мастерскую после ремонта: это видите только вы.</span><span class="btnr"><button class="p" id="accBtn">Открыть профиль</button></span></div>`;
   let off=k=>{try{return localStorage.getItem('gt_promo_'+k)}catch(e){return null}};
   if(deferredPrompt&&!isStandalone()&&isMobile()&&!off('inst'))return `<div class="promo"><span>Установите Garage Journal на телефон: так будет быстрее открывать и приходить уведомления.</span><span class="btnr"><button class="p" id="promoInst">Установить</button><button id="promoOff" data-off="inst">Не сейчас</button></span></div>`;
   if(isStandalone()&&'Notification' in window&&Notification.permission==='default'&&!off('push'))return `<div class="promo"><span>Включите уведомления: напомним о масле, свечах, ремне ГРМ и страховке.</span><span class="btnr"><button class="p" id="promoPush">Включить уведомления</button><button id="promoOff" data-off="push">Не сейчас</button></span></div>`;
@@ -206,10 +207,10 @@ function renderHome(){
   const mine=S.v.length?`<section class="mine"><div class="gh"><h2>Мой транспорт</h2><button id="addV">Добавить транспорт</button></div>`
     +GROUPS.map(([title],gi)=>{
       const l=S.v.filter(v=>gi===0?!WATER.has(v.type):WATER.has(v.type));
-      return l.length?`<div class="grp">${title}</div><div class="vgrid">${l.map(card).join('')}</div>`:'';
+      return l.length?`<div class="grp">${title}</div><div class="vgrid" data-n="${l.length}">${l.map(card).join('')}</div>`:'';
     }).join('')+`</section>`
     :`<section class="mine mine-empty"><h2>Выберите тип транспорта</h2><p>В гараже пока пусто. Добавьте первый транспорт, чтобы вести журнал обслуживания.</p><button id="addV">Добавить транспорт</button></section>`;
-  $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="accBtn">Настройки аккаунта</button>${ME&&ME.admin?'<button id="admSetBtn">Админ-настройки</button>':''}</div>
+  $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="accBtn">Профиль</button>${ME&&ME.admin?'<button id="admSetBtn">Админ-панель</button>':''}</div>
   ${homeSet==='acc'?accPanel():''}${homeSet==='adm'&&ME&&ME.admin?admPanel():''}
   ${promoBanner()}${inboxBar()}${mine}`;
 }
@@ -317,7 +318,7 @@ function initChart(){
   sv.onpointercancel=e=>{pts.delete(e.pointerId);pin=0};
   sv.onwheel=e=>{e.preventDefault();zoomBy(e.deltaY>0?1.25:.8,geo(e).fr)};
 }
-function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else{view='home';renderHome()}renderReqBar()}
+function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else if(view==='profile'&&ME)renderProfile();else if(view==='admin'&&ME&&ME.admin)renderAdmin();else if(view==='adminUser'&&ME&&ME.admin&&AUID)renderAdminUser(AUID);else if(view==='adminThread'&&ME&&ME.admin&&AUID)renderAdminThread(AUID);else{view='home';renderHome()}renderReqBar()}
 
 let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
@@ -674,15 +675,153 @@ function qrCanvas(url,pin){
 }
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
 async function qrSheet(v){
+  if(!ST.publicUrl)return noPublicAddress();
   try{
+    if(!(await reachable(ST.publicUrl)))toast('Публичный адрес сейчас не отвечает: мастер не сможет открыть ссылку',1);
     RL=LANG;RMODE='check';renderCheck(v);
     const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:'',date:today(),items:CKSNAP};
     if(!snapshot.items.length)return toast('Нет позиций для листа',1);
     const r=await api('checklist','POST',{vehicleId:v.id,lang:LANG,snapshot});
-    const url=(r.publicUrl||ST.publicUrl||location.origin)+'/m/'+r.token;
+    const url=(r.publicUrl||ST.publicUrl)+'/m/'+r.token;
     const nm0=String(v.name).replace(/[\\\/:*?"<>|\s]+/g,'-').replace(/^-+|-+$/g,'')||'sheet';
     qrCanvas(url,r.pin).toBlob(b=>{if(b){download(b,'qr-'+nm0+'.png');toast('Лист создан, предыдущий открытый лист этого транспорта закрыт.')}else toast('Не удалось создать картинку',1)},'image/png');
   }catch(e){toast(e.message,1)}
+}
+let ADMIN=null,AUSERS=null,ADMIN_TAB='overview',AFILTER={q:'',f:'all'},AUID=null,PROF=null,AVA='';
+const MOOD_EMO=['😞','😐','😊'];
+const fmtTime=d=>{try{return new Date(String(d).replace(' ','T')+'Z').toLocaleString(LOC_NOW(),{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})}catch(e){return ''}};
+const LOC_NOW=()=>({ru:'ru-RU',en:'en-GB',uk:'uk-UA',ja:'ja-JP'})[LANG]||'en-GB';
+function chatHtml(list,inputId,btnId,extra){
+  const bubbles=list.map(m=>`<div class="bub ${m.admin?'in':'out'}"><div class="bt">${esc(m.body)}</div><small>${fmtTime(m.created)}</small></div>`).join('')||'<div class="meta">Переписки пока нет. Напишите, что нужно: ответим здесь.</div>';
+  return `<div class="chat">${bubbles}</div><div class="panel form"><label class="w"><textarea id="${inputId}" rows="2" maxlength="2000" placeholder="Сообщение"></textarea></label><div class="w btnr">${extra||''}<button class="p" id="${btnId}">Отправить</button></div></div>`;
+}
+function threadsHtml(list){
+  return (list.length?list.map(t=>`<button class="ucard tcard" data-athread="${t.userId}"><div class="uh"><div><b class="u">${esc(t.login)}</b>${t.unread?` <span class="badge bad">новых: ${t.unread}</span>`:''}<small>${t.count} сообщ. · ${fmtTime(t.last)}</small></div><span>›</span></div></button>`).join(''):'<div class="empty">Переписок пока нет</div>');
+}
+async function renderAdminThread(uid){
+  if(!(ME&&ME.admin)){view='home';return render()}
+  view='adminThread';AUID=uid;
+  $('main').innerHTML=`<div class="top"><button class="tab" data-atab="support">← Обращения</button><h1>Переписка</h1></div><div class="empty">Загрузка…</div>`;
+  try{
+    const d=await api('admin/threads/'+uid);
+    $('main').innerHTML=`<div class="top"><button class="tab" data-atab="support">← Обращения</button><h1 class="u">${esc(d.login)}</h1></div>
+    ${chatHtml(d.messages,'thrReply','thrSend',`<button id="thrClose">Закрыть обращение</button>`)}`;
+  }catch(e){toast(e.message,1);renderAdmin('support')}
+}
+function noPublicAddress(){toast('QR не создан: не задан публичный адрес приложения. Его задаёт администратор в Админ-панели → Публичный адрес.',1)}
+async function adminAct(path,method='POST',body){
+  try{await api(path,method,body);toast('Сохранено');await renderAdmin()}catch(e){toast(e.message,1)}
+}
+const ADM_TABS=[['overview','Сводка'],['settings','Настройки'],['users','Пользователи'],['support','Обращения'],['log','Журнал']];
+async function renderAdmin(tab){
+  if(!(ME&&ME.admin)){view='home';return render()}
+  if(tab)ADMIN_TAB=tab;
+  view='admin';AUID=null;
+  $('main').innerHTML=`<div class="top"><button id="admBack">← Назад</button><h1>Админ-панель</h1></div>
+  <div class="tabs">${ADM_TABS.map(([k,n])=>`<button class="tab ${ADMIN_TAB===k?'on':''}" data-atab="${k}">${n}</button>`).join('')}</div><div id="admBody"><div class="empty">Загрузка…</div></div>`;
+  const body=$('admBody');
+  try{
+    if(ADMIN_TAB==='overview'){const o=await api('admin/overview');body.innerHTML=`<div class="astat">${[[o.users,'пользователей'],[o.vehicles,'транспорта'],[o.openSheets,'открытых листов'],[o.pendingRequests,'запросов мастера'],[o.supportNew,'новых обращений'],[o.ratings,'оценок мастерских'],[o.blocked,'заблокировано']].map(([n,t])=>`<div><b>${n}</b><span>${t}</span></div>`).join('')}</div>`}
+    if(ADMIN_TAB==='settings'){const l=await api('admin/limits');body.innerHTML=admSettingsHtml(l)}
+    if(ADMIN_TAB==='users'){AUSERS=await api('admin/users');ADMIN=AUSERS;body.innerHTML=usersHtml()}
+    if(ADMIN_TAB==='support'){const l=await api('admin/threads');body.innerHTML=threadsHtml(l)}
+    if(ADMIN_TAB==='log'){const l=await api('admin/log');body.innerHTML=logHtml(l)}
+  }catch(e){body.innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+function admSettingsHtml(l){
+  return `<div class="panel form"><h2 class="w">Ограничения сообщений в поддержку</h2>
+  <label>Сообщений в сутки<input id="lPerDay" type="number" min="0" value="${l.perDay}"></label>
+  <label>Интервал между сообщениями, мин<input id="lGap" type="number" min="0" value="${l.gap}"></label>
+  <label class="w">Открытых обращений одновременно<input id="lOpen" type="number" min="0" value="${l.open}"></label>
+  <h2 class="w">Оценки мастерских</h2>
+  <label class="w">Оценки<select id="lRate"><option value="1" ${l.ratingsOn?'selected':''}>Включены</option><option value="0" ${!l.ratingsOn?'selected':''}>Выключены</option></select></label>
+  <label class="w">Минимум символов в комментарии (0 — не нужен)<input id="lMin" type="number" min="0" value="${l.minComment}"></label>
+  <div class="w"><button class="p" data-lsave="1">Сохранить</button></div></div>
+  <h2>Сайт</h2><div class="panel"><button id="dbBtn">Подключение к базе</button><button id="admBtn">Публичный адрес и доступ</button><button id="admItemsBtn">Пункты для транспорта</button></div>`;
+}
+function usersList(){
+  const q=AFILTER.q.trim().toLowerCase();
+  const list=AUSERS.users.filter(u=>(!q||u.login.toLowerCase().includes(q)||(u.displayName||'').toLowerCase().includes(q))&&
+    (AFILTER.f==='all'||(AFILTER.f==='admins'&&u.admin)||(AFILTER.f==='blocked'&&u.blocked)||(AFILTER.f==='novehicle'&&!u.vehicles.length)||
+     (AFILTER.f==='inactive'&&(!u.lastLogin||Date.now()-Date.parse(u.lastLogin)>30*864e5))));
+  return list.map(u=>`<div class="ucard ${u.blocked?'blk':''}"><div class="uh"><div><b class="u">${esc(u.login)}</b>${u.admin?' <span class="badge ok">админ</span>':''}${u.blocked?' <span class="badge bad">заблокирован</span>':''}<small>${u.lang?u.lang.toUpperCase():'—'} · транспорта: ${u.vehicles.length} · вход: ${u.lastLogin?dfmt(String(u.lastLogin).slice(0,10)):'никогда'}</small></div><span class="btnr"><button data-udetail="${u.id}">Открыть</button><button data-uedit="${u.id}">Изменить</button></span></div></div>`).join('')||'<div class="empty">Никого не найдено</div>';
+}
+function usersHtml(){
+  return `<div class="panel"><input id="uSearch" placeholder="Поиск по логину или имени" value="${esc(AFILTER.q)}"><select id="uFilter">${[['all','Все'],['admins','Администраторы'],['blocked','Заблокированные'],['novehicle','Без транспорта'],['inactive','Не заходили 30 дней']].map(([k,n])=>`<option value="${k}" ${AFILTER.f===k?'selected':''}>${n}</option>`).join('')}</select></div><div class="ulist" id="uList">${usersList()}</div>`;
+}
+function supAdminHtml(list){
+  return (list.length?list.map(m=>`<div class="card"><div class="hd"><b>${esc(m.subject)}</b><span class="st ${m.status==='new'?'wait':m.status==='closed'?'no':'ok'}">${esc(m.status)}</span></div>
+    <small>${esc(m.login)} · ${dfmt(String(m.created_at).slice(0,10))}</small><div class="why">${esc(m.body)}</div>
+    <div class="row"><button data-asup="${m.id}|read">Прочитано</button><button data-asup="${m.id}|closed">Закрыть</button><button data-asup="${m.id}|new">Вернуть как новое</button></div></div>`).join(''):'<div class="empty">Обращений нет</div>');
+}
+function logHtml(list){
+  return list.map(x=>`<div class="pr"><span><b>${esc(x.login||'—')}</b> · ${esc(x.action)}</span><small>${esc(x.target)} · ${dfmt(String(x.created_at).slice(0,10))}</small></div>`).join('')||'<div class="empty">Журнал пуст</div>';
+}
+async function renderAdminUser(id){
+  if(!(ME&&ME.admin)){view='home';return render()}
+  view='adminUser';AUID=id;
+  $('main').innerHTML=`<div class="top"><button class="tab" data-atab="users">← Пользователи</button><h1>Пользователь</h1></div><div class="empty">Загрузка…</div>`;
+  try{
+    const d=await api('admin/users/'+id+'/detail'),u=d.user;
+    $('main').innerHTML=`<div class="top"><button class="tab" data-atab="users">← Пользователи</button><h1 class="u">${esc(u.login)}</h1></div>
+    <div class="pcard"><div class="av av-c${(u.id%8)+1}">${esc(u.login.slice(0,2).toUpperCase())}</div><div class="pinfo"><b class="u">${esc(u.displayName||u.login)}</b>
+    <small>${u.admin?'администратор · ':''}${u.blocked?'заблокирован · ':''}с ${dfmt(String(u.created).slice(0,10))} · вход: ${u.lastLogin?dfmt(String(u.lastLogin).slice(0,10)):'никогда'}</small>
+    <small>Открытых листов: ${d.openSheets}</small></div></div>
+    <div class="row" style="margin:8px 0 14px"><button data-uedit="${u.id}">Изменить</button><button data-ublock="${u.id}|${u.blocked?'0':'1'}">${u.blocked?'Разблокировать':'Заблокировать'}</button></div>
+    <h2>Транспорт</h2>${d.vehicles.map(v=>`<div class="avh"><span><b class="u">${esc(v.name)}</b> <small>${(TYPES.find(t=>t[0]===v.type)||[0,''])[1]}, ${fmt(v.odo)} ${v.unit==='mi'?'миль':(WATER.has(v.type)?'ч':'км')}</small></span><button data-vdel="${v.id}" class="danger">Удалить</button></div>`).join('')||'<div class="meta">Транспорта нет</div>'}
+    <h2>Оценки мастерских</h2>${d.ratings.map(r=>`<div class="pr"><span>${MOOD_EMO[r.mood-1]} <span class="u">${esc(r.shop_link)}</span></span><small>${esc(r.comment||'')}</small></div>`).join('')||'<div class="meta">Оценок нет</div>'}
+    <h2>Обращения</h2>${d.support.map(m=>`<div class="card"><div class="hd"><b>${esc(m.subject)}</b><span class="st">${esc(m.status)}</span></div><div class="why">${esc(m.body)}</div><div class="row"><button data-asup="${m.id}|read">Прочитано</button><button data-asup="${m.id}|closed">Закрыть</button></div></div>`).join('')||'<div class="meta">Обращений нет</div>'}`;
+  }catch(e){toast(e.message,1);renderAdmin('users')}
+}
+function userDialog(u){
+  dialog('Пользователь: '+u.login,[
+    {n:'login',l:'Логин',w:1,v:u.login},
+    {n:'name',l:'Имя для показа',w:1,v:u.displayName||''},
+    {n:'lang',l:'Язык интерфейса',w:1,opts:[['','—'],...LANGS.map(l=>[l[0],l[1]])],v:u.lang||''},
+    {n:'admin',l:'Права',w:1,opts:[['0','Обычный пользователь'],['1','Администратор']],v:u.admin?'1':'0'},
+    {n:'password',l:'Новый пароль (необязательно, минимум 6 символов)',w:1,v:''},
+    {sep:'Опасная зона'},
+    {n:'del',l:'Удалить пользователя и весь его транспорт',w:1,opts:[['','Не удалять'],['1','Удалить пользователя']],v:''}],
+  x=>{
+    if(x.del==='1'){
+      if(u.id===ME.id)return 'Нельзя удалить самого себя';
+      if(!confirm('Удалить «'+u.login+'» и весь его транспорт? Это нельзя отменить.'))return;
+      adminAct('admin/users/'+u.id+'/delete');return;
+    }
+    const body={},login=x.login.trim();
+    if(login&&login!==u.login)body.login=login;
+    if(x.name!==(u.displayName||''))body.displayName=x.name.trim();
+    if(x.lang!==(u.lang||''))body.lang=x.lang;
+    if((x.admin==='1')!==u.admin)body.admin=x.admin==='1';
+    if(x.password)body.password=x.password;
+    if(Object.keys(body).length)adminAct('admin/users/'+u.id,'POST',body);
+  },{lead:'Изменения сразу применяются. При смене пароля пользователь выйдет из всех устройств.'});
+}
+// ---- профиль ----
+async function loadRatings(){try{RATE=await api('ratings')}catch(e){}}
+async function renderProfile(){
+  if(!ME)return;
+  view='profile';
+  $('main').innerHTML=`<div class="top"><button id="profBack">← Назад</button><h1>Профиль</h1></div><div class="empty">Загрузка…</div>`;
+  try{PROF=await api('profile')}catch(e){toast(e.message,1);view='home';return render()}
+  let THREAD=[];try{THREAD=await api('support/thread')}catch(e){}
+  const p=PROF,init=(p.displayName||p.login||'?').trim().slice(0,2).toUpperCase(),col=p.avatar||'c1';
+  const rateCard=x=>`<div class="card"><div class="hd"><b class="u">${esc(x.vehicle)}</b><small>${dfmt(String(x.date).slice(0,10))}</small></div><small class="u">${esc(x.link)}</small>
+    <div class="smile">${[1,2,3].map(m=>`<button data-rate="${x.checklistId}|${m}">${MOOD_EMO[m-1]}</button>`).join('')}</div>
+    <textarea data-rcomm="${x.checklistId}" rows="2" placeholder="Комментарий (необязательно)"></textarea></div>`;
+  const supRow=m=>`<div class="card"><div class="hd"><b>${esc(m.subject)}</b><span class="st ${m.status==='new'?'wait':m.status==='closed'?'no':'ok'}">${esc(({new:'отправлено',read:'прочитано',closed:'закрыто'})[m.status]||m.status)}</span></div><div class="why">${esc(m.body)}</div></div>`;
+  $('main').innerHTML=`<div class="top"><button id="profBack">← Назад</button><h1>Профиль</h1></div>
+  <div class="pcard"><div class="av av-${col}">${esc(init)}</div><div class="pinfo"><b class="u">${esc(p.displayName||p.login)}</b>
+  <small>@${esc(p.login)} · с ${dfmt(String(p.created).slice(0,10))}${p.lastLogin?' · вход: '+dfmt(String(p.lastLogin).slice(0,10)):''}</small><small>Транспорта: ${p.vehicles}</small></div></div>
+  <h2>Внешний вид</h2>
+  <div class="panel"><label>Имя для показа<input id="pName" maxlength="60" value="${esc(p.displayName)}"></label>
+    <div class="avpick">${['c1','c2','c3','c4','c5','c6','c7','c8'].map(c=>`<button class="av av-${c} ${c===col?'sel':''}" data-avatar="${c}">${esc(init)}</button>`).join('')}</div>
+    <button class="p" id="profSave">Сохранить профиль</button></div>
+  ${RATE.pending&&RATE.pending.length?`<h2>Оцените мастерскую</h2>${RATE.pending.map(rateCard).join('')}`:''}
+  <h2>Мои оценки</h2>${p.ratings.length?p.ratings.map(r=>`<div class="pr"><span>${MOOD_EMO[r.mood-1]} <span class="u">${esc(r.vehicle)}</span></span><small class="u">${esc(r.shop_link)}</small>${r.comment?`<div class="meta">${esc(r.comment)}</div>`:''}</div>`).join(''):'<div class="meta">Оценок пока нет.</div>'}
+  ${p.shops.length?`<h2>Средняя оценка по адресам</h2>${p.shops.map(x=>`<div class="pr"><span class="u">${esc(x.link||'—')}</span><b>${MOOD_EMO[Math.round(x.avg)-1]} ${x.avg}</b><small>оценок: ${x.n}</small></div>`).join('')}`:''}
+  <h2>Поддержка</h2>${chatHtml(THREAD,'supBody','supSend')}
+  <h2>Настройки аккаунта</h2>${accPanel()}`;
 }
 function convertUnit(v,to){
   const f=to==='mi'?0.621371:1.609344,c=n=>n==null?n:Math.round(n*f),r100=n=>n?Math.max(100,Math.round(n*f/100)*100):0;
@@ -738,8 +877,27 @@ function planDone(v,q){
   doneDialog(v,it,{planId:q.id,isNew,cost:q.price,note:[q.url,q.note].filter(Boolean).join(' ')});
 }
 
-document.addEventListener('click',e=>{
-  const t=e.target,v=V();
+document.addEventListener('click',async e=>{
+  const t=e.target;
+  const at=t.closest('[data-atab]');if(at){renderAdmin(at.dataset.atab);return}
+  const ud=t.closest('[data-udetail]');if(ud){renderAdminUser(ud.dataset.udetail);return}
+  const ue=t.closest('[data-uedit]');if(ue){const id=+ue.dataset.uedit,u=(AUSERS&&AUSERS.users.find(x=>x.id===id))||null;if(u){userDialog(u);return}
+    try{const d=await api('admin/users/'+id+'/detail');userDialog(d.user)}catch(err){toast(err.message,1)};return}
+  const vd=t.closest('[data-vdel]');if(vd){if(confirm('Удалить этот транспорт со всеми записями?')){try{await api('admin/vehicles/'+vd.dataset.vdel+'/delete','POST');toast('Удалено');AUID?renderAdminUser(AUID):renderAdmin('users')}catch(err){toast(err.message,1)}}return}
+  const ub=t.closest('[data-ublock]');if(ub){const [id,val]=ub.dataset.ublock.split('|');if(val==='1'&&!confirm('Заблокировать пользователя? Он выйдет из всех устройств.'))return;try{await api('admin/users/'+id,'POST',{blocked:val==='1'});toast('Сохранено');renderAdminUser(id)}catch(err){toast(err.message,1)}return}
+  const th=t.closest('[data-athread]');if(th){renderAdminThread(th.dataset.athread);return}
+  if(t.closest('#thrSend')){const ta=$('thrReply'),txt=ta?ta.value.trim():'';if(!txt)return toast('Напишите ответ',1);try{await api('admin/threads/'+AUID+'/reply','POST',{body:txt});toast('Отправлено');renderAdminThread(AUID)}catch(err){toast(err.message,1)}return}
+  if(t.closest('#thrClose')){if(!confirm('Закрыть обращение?'))return;try{await api('admin/threads/'+AUID+'/close','POST');toast('Закрыто');renderAdmin('support')}catch(err){toast(err.message,1)}return}
+  const sp=t.closest('[data-asup]');if(sp){const [id,st]=sp.dataset.asup.split('|');try{await api('admin/support/'+id,'POST',{status:st});toast('Сохранено');AUID?renderAdminUser(AUID):renderAdmin('support')}catch(err){toast(err.message,1)}return}
+  if(t.closest('[data-lsave]')){try{await api('admin/limits','PUT',{perDay:$('lPerDay').value,gap:$('lGap').value,open:$('lOpen').value,ratingsOn:$('lRate').value==='1',minComment:$('lMin').value});toast('Сохранено');renderAdmin('settings')}catch(err){toast(err.message,1)}return}
+  const av=t.closest('[data-avatar]');if(av){document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.toggle('sel',x===av));AVA=av.dataset.avatar;return}
+  if(t.closest('#profSave')){try{await api('profile','POST',{displayName:$('pName').value.trim(),avatar:AVA||(PROF&&PROF.avatar)||'',lang:LANG});toast('Сохранено');renderProfile()}catch(err){toast(err.message,1)}return}
+  const rt=t.closest('[data-rate]');if(rt){const [cid,m]=rt.dataset.rate.split('|'),ta=document.querySelector('[data-rcomm="'+cid+'"]');try{await api('ratings','POST',{checklistId:cid,mood:+m,comment:ta?ta.value:''});toast('Спасибо за оценку');await loadRatings();renderProfile()}catch(err){toast(err.message,1)}return}
+  if(t.closest('#supSend')){try{await api('support','POST',{body:$('supBody').value.trim()});toast('Сообщение отправлено');renderProfile()}catch(err){toast(err.message,1)}return}
+  if(t.closest('#profBack')){view='home';return render()}
+  if(t.closest('#admBack')){view='home';return render()}
+
+  const v=V();
   if(t.closest('#rClose')){document.body.classList.remove('rep');return}
   if(t.closest('#rPrint'))return RMODE==='check'&&RQR&&!RCKL?printChecklist():window.print();
   const rl=t.closest('[data-rl]');if(rl){RL=rl.dataset.rl;return renderReport()}
@@ -747,13 +905,14 @@ document.addEventListener('click',e=>{
   if(t.closest('#chkBtn')){RMODE='check';RL=LANG;RCKL=null;RX=new Set();RADD=new Set();RCUS=[];document.body.classList.add('rep');window.scrollTo(0,0);return renderReport()}
   
   if(t.closest('#logout')){api('auth/logout','POST').catch(()=>{}).finally(()=>location.reload());return}
+  if(t.closest('#admBack')){view='home';return render()}
   if(t.closest('#dbBtn'))return showSetup(null,true);
   if(t.closest('#installBtn'))return installApp();
   if(t.closest('#promoInst'))return installApp();
   if(t.closest('#promoPush'))return pushEnable().then(ok=>{if(ok)render()});
   if(t.closest('#promoOff')){try{localStorage.setItem('gt_promo_'+t.closest('#promoOff').dataset.off,'1')}catch(e){}return render()}
-  if(t.closest('#accBtn')){homeSet=homeSet==='acc'?false:'acc';return render()}
-  if(t.closest('#admSetBtn')){homeSet=homeSet==='adm'?false:'adm';return render()}
+  if(t.closest('#accBtn')){view='profile';return render()}
+  if(t.closest('#admSetBtn')){view='admin';return render()}
   if(t.closest('#admBtn'))return adminDialog();
   if(t.closest('#pushBtn'))return pushDialog();
   if(t.closest('#linksBtn')&&v)return linksDialog(v);
@@ -830,7 +989,9 @@ function rctx(v,L){
   const loc=LOC[L];
   return{t,isW:WATER.has(v.type),nf:n=>Number(n).toLocaleString(loc),df:d=>d?new Date(d).toLocaleDateString(loc,{timeZone:'UTC'}):'—',tr:s=>trName(s,L)};
 }
-document.addEventListener('change',e=>{const i=e.target.id;
+document.addEventListener('input',e=>{if(e.target.id==='uSearch'){AFILTER.q=e.target.value;const l=$('uList');if(l)l.innerHTML=usersList()}});
+document.addEventListener('change',e=>{if(e.target.id==='uFilter'){AFILTER.f=e.target.value;const l=$('uList');if(l)l.innerHTML=usersList();return}
+const i=e.target.id;
   if(i==='rAll'){RALL=e.target.checked;renderReport()}
   if(i==='rSoon'){RSOON=e.target.checked;renderReport()}
   if(i==='rNone'){RNONE=e.target.checked;renderReport()}
@@ -847,12 +1008,12 @@ function snapAdd(it,kind,why,prev,L){
 const qrBlock=c=>`<div class="qrbox">${QR.svg(RCKL.url,120)}<div><b>${c.qrTitle}</b><div>${c.qrHint}</div><div class="pin">${c.pin}: <b>${RCKL.pin}</b></div><div class="qurl">${esc(RCKL.url.replace(/^https?:\/\//,''))}</div></div></div>`;
 async function printChecklist(){
   const v=V();
+  if(!ST.publicUrl){noPublicAddress();window.print();return}
   try{
     const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:RNOTE,date:today(),items:CKSNAP};
     const r=await api('checklist','POST',{vehicleId:v.id,lang:RL,snapshot});
-    const base=r.publicUrl||ST.publicUrl||location.origin;
+    const base=r.publicUrl||ST.publicUrl;
     RCKL={token:r.token,pin:r.pin,url:base+'/m/'+r.token};
-    if(!r.publicUrl)sys('Публичный адрес не задан: QR откроется только в вашей сети',1);
     renderReport(true);setTimeout(()=>window.print(),350);
   }catch(e){toast(e.message,1);window.print()}
 }
@@ -954,7 +1115,8 @@ function registerCatalog(){
 }
 const catNames=ru=>{const c=CATALOG.find(x=>x.names.ru===ru);return c?c.names:null};
 const reachable=u=>Promise.race([fetch(u+'/api/health',{mode:'no-cors',cache:'no-store'}).then(()=>true,()=>false),new Promise(r=>setTimeout(()=>r(false),3500))]);
-async function refreshInbox(){try{INBOX=await api('checklists')}catch(e){}try{REQS=await api('requests')}catch(e){}}
+let RATE={pending:[],enabled:true};
+async function refreshInbox(){try{INBOX=await api('checklists')}catch(e){}try{REQS=await api('requests')}catch(e){}try{RATE=await api('ratings')}catch(e){}}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(p,method='GET',body){
   const r=await fetch('api/'+p,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
