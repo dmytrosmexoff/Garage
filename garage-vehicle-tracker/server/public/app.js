@@ -201,10 +201,13 @@ function renderHome(){
   const tl=v=>(TYPES.find(t=>t[0]===v.type)||[0,''])[1];
   const card=v=>{
     const al=alerts(v),worst=al.some(a=>a[0]==='bad')?'bad':al.some(a=>a[0]==='soon')?'soon':'ok';
-    return `<div class="vc ${worst}"><button class="vcm" data-open="${v.id}">${ICONS[v.type]||''}<span class="vt"><b class="u">${esc(v.name)}</b><small>${tl(v)}, ${fmt(v.odo)} ${UN(v)}</small><span class="vb">${al.map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></span></button><button class="vq" data-quick="${v.id}">+ пробег</button></div>`;
+    return `<div class="vc ${worst}"><button class="vcm" data-open="${v.id}">${ICONS[v.type]||''}<b class="u">${esc(v.name)}</b><small>${tl(v)}, ${fmt(v.odo)} ${UN(v)}</small><span class="vb">${al.map(a=>`<span class="badge ${a[0]}">${esc(a[1])}</span>`).join('')}</span></button><button class="vq" data-quick="${v.id}">+ пробег</button></div>`;
   };
   const mine=S.v.length?`<section class="mine"><div class="gh"><h2>Мой транспорт</h2><button id="addV">Добавить транспорт</button></div>`
-    +`<div class="vgrid n${Math.min(S.v.length,3)}">${[...S.v.filter(v=>!WATER.has(v.type)),...S.v.filter(v=>WATER.has(v.type))].map(card).join('')}</div></section>`
+    +GROUPS.map(([title],gi)=>{
+      const l=S.v.filter(v=>gi===0?!WATER.has(v.type):WATER.has(v.type));
+      return l.length?`<div class="grp">${title}</div><div class="vgrid">${l.map(card).join('')}</div>`:'';
+    }).join('')+`</section>`
     :`<section class="mine mine-empty"><h2>Выберите тип транспорта</h2><p>В гараже пока пусто. Добавьте первый транспорт, чтобы вести журнал обслуживания.</p><button id="addV">Добавить транспорт</button></section>`;
   $('main').innerHTML=`<div class="hero"><div><h1>Привет${ME?', <span class="u">'+esc(ME.login)+'</span>':''}!</h1><p>Что обслуживаем сегодня?</p></div><button id="accBtn">Настройки аккаунта</button>${ME&&ME.admin?'<button id="admSetBtn">Админ-настройки</button>':''}</div>
   ${homeSet==='acc'?accPanel():''}${homeSet==='adm'&&ME&&ME.admin?admPanel():''}
@@ -670,22 +673,13 @@ function qrCanvas(url,pin){
   return cv;
 }
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
-async function linkGuard(vid){
-  await refreshInbox();
-  return !INBOX.some(c=>c.vehicleId===vid&&c.status==='open')||confirm('Для этого транспорта уже есть открытый лист. Новый лист закроет его, и ранее напечатанный QR-код перестанет открываться. Создать новый?');
-}
-function linkCheck(base,pub){
-  if(!pub)return sys('Публичный адрес не задан: QR откроется только в вашей сети',1);
-  reachable(base).then(ok=>{if(!ok)sys('С этого устройства не открывается адрес: '+base+'. Ссылка в QR может не работать: проверьте публичный адрес в админ-настройках и туннель.',1)});
-}
 async function qrSheet(v){
   try{
-    if(!(await linkGuard(v.id)))return;
     RL=LANG;RMODE='check';renderCheck(v);
     const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:'',date:today(),items:CKSNAP};
     if(!snapshot.items.length)return toast('Нет позиций для листа',1);
     const r=await api('checklist','POST',{vehicleId:v.id,lang:LANG,snapshot});
-    const base=r.publicUrl||ST.publicUrl||location.origin,url=base+'/m/'+r.token;linkCheck(base,!!(r.publicUrl||ST.publicUrl));
+    const url=(r.publicUrl||ST.publicUrl||location.origin)+'/m/'+r.token;
     const nm0=String(v.name).replace(/[\\\/:*?"<>|\s]+/g,'-').replace(/^-+|-+$/g,'')||'sheet';
     qrCanvas(url,r.pin).toBlob(b=>{if(b){download(b,'qr-'+nm0+'.png');toast('Лист создан, предыдущий открытый лист этого транспорта закрыт.')}else toast('Не удалось создать картинку',1)},'image/png');
   }catch(e){toast(e.message,1)}
@@ -854,12 +848,11 @@ const qrBlock=c=>`<div class="qrbox">${QR.svg(RCKL.url,120)}<div><b>${c.qrTitle}
 async function printChecklist(){
   const v=V();
   try{
-    if(!(await linkGuard(v.id)))return;
     const snapshot={vehicle:{name:v.name,type:v.type,odo:v.odo,unit:WATER.has(v.type)?'h':(v.unit||'km'),cc:v.cc},note:RNOTE,date:today(),items:CKSNAP};
     const r=await api('checklist','POST',{vehicleId:v.id,lang:RL,snapshot});
     const base=r.publicUrl||ST.publicUrl||location.origin;
     RCKL={token:r.token,pin:r.pin,url:base+'/m/'+r.token};
-    linkCheck(base,!!(r.publicUrl||ST.publicUrl));
+    if(!r.publicUrl)sys('Публичный адрес не задан: QR откроется только в вашей сети',1);
     renderReport(true);setTimeout(()=>window.print(),350);
   }catch(e){toast(e.message,1);window.print()}
 }
