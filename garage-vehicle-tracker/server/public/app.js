@@ -319,7 +319,8 @@ function initChart(){
   sv.onpointercancel=e=>{pts.delete(e.pointerId);pin=0};
   sv.onwheel=e=>{e.preventDefault();zoomBy(e.deltaY>0?1.25:.8,geo(e).fr)};
 }
-function render(){if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else if(view==='profile'&&ME)renderProfile();else if(view==='admin'&&ME&&ME.admin)renderAdmin();else if(view==='adminUser'&&ME&&ME.admin&&AUID)renderAdminUser(AUID);else if(view==='adminThread'&&ME&&ME.admin&&AUID)renderAdminThread(AUID);else{view='home';renderHome()}renderReqBar()}
+function render(){
+  const w=document.querySelector(".wrap");if(w)w.classList.remove("lnd-full");if(view==='inbox'&&INB)renderInbox();else if(view==='veh'&&V())renderVehicle();else if(view==='profile'&&ME)renderProfile();else if(view==='admin'&&ME&&ME.admin)renderAdmin();else if(view==='adminUser'&&ME&&ME.admin&&AUID)renderAdminUser(AUID);else if(view==='adminThread'&&ME&&ME.admin&&AUID)renderAdminThread(AUID);else{view='home';renderHome()}renderReqBar()}
 
 let onOk=null,lock=false;
 function dialog(title,fields,ok,o={}){
@@ -1268,6 +1269,7 @@ function landPage(){
 }
 let AUTH_MODE='login',AUTH_ST=null;
 function showAuth(st,mode){
+  const w=document.querySelector(".wrap");if(w)w.classList.add("lnd-full");
   AUTH_ST=st||ST||{};
   AUTH_MODE=(mode==='reg'||!AUTH_ST.hasUsers)?'reg':'login';
   $('main').innerHTML=landPage();

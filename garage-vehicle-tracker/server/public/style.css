@@ -243,7 +243,7 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 .lnd-vehicle{position:absolute;bottom:4%;width:200px;animation:lnd-drive 9s linear infinite}
 .lnd-moto{left:0;animation-delay:0s}
 .lnd-car{left:0;animation-delay:-4.5s}
-.lnd-wheel{animation:lnd-spin .6s linear infinite}
+.lnd-scene .lnd-wheel{animation:lnd-spin .6s linear infinite}
 .lnd-speech{position:absolute;top:18%;left:50%;transform:translateX(-50%);background:#fff;padding:10px 16px;border-radius:14px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.2);white-space:nowrap;animation:lnd-bob 2.4s ease-in-out infinite;z-index:5}
 .lnd-speech::after{content:"";position:absolute;bottom:-8px;left:50%;margin-left:-8px;border:8px solid transparent;border-top-color:#fff;border-bottom:0}
 .lnd-sailboat{position:absolute;bottom:44%;right:8%;width:240px;z-index:3;color:#0d2540;animation:lnd-sail-bob 3.4s ease-in-out infinite;transform-origin:50% 90%}
@@ -277,3 +277,14 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 
 .lnd-joke{left:auto;right:4%;top:8%;transform:none;animation:none;max-width:52%;text-align:center;white-space:normal;font-size:14px}
 .lnd-joke::after{left:auto;right:24px}
+
+/* ---- главная: полная ширина, светлая тема, читаемый текст ---- */
+.wrap.lnd-full{max-width:none!important;padding:0!important}
+.lnd-page{max-width:none;width:100%;padding:0 14px 40px;color-scheme:light;color:#1b1f2a}
+.lnd-main{max-width:none}
+.lnd-card{color:#1b1f2a;color-scheme:light}
+.lnd-card h2,.lnd-card label{color:#1b1f2a}
+.lnd-card input{background:#fff;color:#1b1f2a}
+.lnd-steps li{color:#1b1f2a}
+.lnd-disc{color:#fff}
+.lnd-hero h1,.lnd-hero p{color:#fff}
