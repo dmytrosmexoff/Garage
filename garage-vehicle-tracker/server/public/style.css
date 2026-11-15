@@ -230,3 +230,50 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 .bub.in{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
 .tcard{width:100%;text-align:left;display:block;cursor:pointer}
 .tcard>.uh>span{font-size:22px;color:var(--mute)}
+
+/* ---- главная (вход и регистрация): сцена, форма, переход в приложение ---- */
+.lnd-page{max-width:1040px;margin:0 auto;padding:0 18px 40px}
+.lnd-scene{position:relative;height:42vh;min-height:260px;overflow:hidden;border-radius:18px;background:linear-gradient(180deg,#ffb36b,#ff5e7e 70%);box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.lnd-sun{position:absolute;top:8%;right:12%;width:90px;height:90px;border-radius:50%;background:#fff3c4;box-shadow:0 0 60px #fff3c4;animation:lnd-pulse 4s ease-in-out infinite}
+.lnd-hill{position:absolute;bottom:22%;left:-10%;width:120%;height:35%;background:#c4456b;border-radius:50% 50% 0 0;opacity:.5}
+.lnd-sea{position:absolute;bottom:36%;left:0;right:0;height:22%;background:#0b4f8a;opacity:.92}
+.lnd-sea-wave{position:absolute;bottom:57%;left:0;width:200%;height:22px;z-index:1;animation:lnd-wave2 8s linear infinite}
+.lnd-road{position:absolute;bottom:0;left:0;right:0;height:36%;background:#2b2f3a}
+.lnd-road::after{content:"";position:absolute;top:45%;left:0;right:0;height:6px;background:repeating-linear-gradient(90deg,#fff 0 40px,transparent 40px 80px);animation:lnd-dash 1s linear infinite}
+.lnd-vehicle{position:absolute;bottom:4%;width:200px;animation:lnd-drive 9s linear infinite}
+.lnd-moto{left:0;animation-delay:0s}
+.lnd-car{left:0;animation-delay:-4.5s}
+.lnd-wheel{animation:lnd-spin .6s linear infinite}
+.lnd-speech{position:absolute;top:18%;left:50%;transform:translateX(-50%);background:#fff;padding:10px 16px;border-radius:14px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.2);white-space:nowrap;animation:lnd-bob 2.4s ease-in-out infinite;z-index:5}
+.lnd-speech::after{content:"";position:absolute;bottom:-8px;left:50%;margin-left:-8px;border:8px solid transparent;border-top-color:#fff;border-bottom:0}
+.lnd-sailboat{position:absolute;bottom:44%;right:8%;width:240px;z-index:3;color:#0d2540;animation:lnd-sail-bob 3.4s ease-in-out infinite;transform-origin:50% 90%}
+.lnd-jet-wrap{position:absolute;bottom:40%;left:0;width:140px;z-index:4;animation:lnd-jet-run 4.5s linear infinite alternate}
+.lnd-jet{width:100%;display:block;animation:lnd-jet-bounce .42s ease-in-out infinite alternate;transform-origin:50% 90%}
+.lnd-main{display:grid;grid-template-columns:1fr minmax(260px,380px);gap:24px;align-items:start;margin-top:-30px}
+.lnd-hero{margin-top:50px}
+.lnd-hero h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px;line-height:1.1;color:#fff;text-shadow:0 3px 12px rgba(0,0,0,.25)}
+.lnd-hero p{font-size:18px;color:#fff;margin:0 0 18px;text-shadow:0 2px 8px rgba(0,0,0,.25)}
+.lnd-steps{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.lnd-steps li{background:rgba(255,255,255,.92);border-radius:14px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.lnd-disc{font-size:13px;line-height:1.45;color:#fff;background:rgba(27,31,42,.55);border-radius:12px;padding:10px 14px;margin:16px 0 0}
+.lnd-card{margin-top:50px;background:#fff;border-radius:18px;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.lnd-card h2{margin:0 0 12px;font-size:20px}
+.lnd-card label{display:block;font-size:13px;color:#5d6b78;margin:10px 0 4px}
+.lnd-card input{width:100%;padding:11px;border:1px solid #cfd7dd;border-radius:10px;font:inherit}
+.lnd-go{width:100%;margin-top:16px;padding:13px;border:0;border-radius:12px;background:#1f5f7a;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.lnd-link{width:100%;margin-top:10px;padding:8px;border:0;background:none;color:#1f5f7a;font:inherit;cursor:pointer;text-decoration:underline}
+.lnd-msg{color:#b3341f;font-size:13px;min-height:18px;margin-top:6px}
+@keyframes lnd-drive{0%{transform:translateX(-100%)}100%{transform:translateX(calc(100vw + 10px))}}
+@keyframes lnd-spin{to{transform:rotate(360deg)}}
+@keyframes lnd-dash{to{background-position:-80px 0}}
+@keyframes lnd-bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-6px)}}
+@keyframes lnd-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes lnd-wave2{to{transform:translateX(-50%)}}
+@keyframes lnd-sail-bob{0%,100%{transform:rotate(-2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-6px)}}
+@keyframes lnd-jet-run{from{transform:translateX(0)}to{transform:translateX(calc(100vw - 150px))}}
+@keyframes lnd-jet-bounce{from{transform:translateY(0) rotate(-5deg)}to{transform:translateY(-14px) rotate(5deg)}}
+@media (max-width:760px){.lnd-main{grid-template-columns:1fr}.lnd-scene{height:260px}.lnd-speech{font-size:14px}}
+@media (prefers-reduced-motion:reduce){.lnd-page *{animation:none!important}}
+
+.lnd-joke{left:auto;right:4%;top:8%;transform:none;animation:none;max-width:52%;text-align:center;white-space:normal;font-size:14px}
+.lnd-joke::after{left:auto;right:24px}

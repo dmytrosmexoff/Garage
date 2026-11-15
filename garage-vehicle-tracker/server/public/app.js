@@ -167,6 +167,7 @@ Object.assign(ICONS,{
 boat:'<svg viewBox="0 0 130 66"><path d="M8 38h112l-14 16H26z"/><path d="M34 38V24h42l12 14"/><path d="M42 30h30"/><path d="M112 34v16h6V34z"/><path d="M4 61q8-5 16 0t16 0t16 0t16 0t16 0t16 0t16 0"/></svg>',
 sail:'<svg viewBox="0 0 130 66"><path d="M12 44h106l-16 12H30z"/><path d="M62 6v38"/><path d="M66 10v30h32z"/><path d="M58 14v26H30z"/><path d="M4 62q8-5 16 0t16 0t16 0t16 0t16 0t16 0t16 0"/></svg>',
 jet:'<svg viewBox="0 0 130 66"><path d="M10 44q4 10 28 10h58q14 0 22-16l-28 2-10-16H66l-6 12H34q-18 0-24 8z"/><path d="M80 24l-4-10h12"/><circle class="h" cx="96" cy="40" r="3"/><path d="M4 62q8-5 16 0t16 0t16 0t16 0t16 0t16 0t16 0"/></svg>'});
+ICONS.moto=vehMotoArt();ICONS.car=vehCarArt();
 const TILES=[['car','Автомобиль'],['moto','Мотоцикл'],['moped','Мопед'],['boat','Моторная лодка'],['sail','Парусная яхта'],['jet','Гидроцикл']];
 const langBox=()=>`<div class="langbox"><select id="langSel" aria-label="Language">${LANGS.map(l=>`<option value="${l[0]}" ${l[0]===LANG?'selected':''}>${l[1]}</option>`).join('')}</select></div>`;
 let deferredPrompt=null;
@@ -879,6 +880,8 @@ function planDone(v,q){
 
 document.addEventListener('click',async e=>{
   const t=e.target;
+  if(t.closest('#lndSwitch')){AUTH_MODE=AUTH_MODE==='reg'?'login':'reg';renderAuthForm();return}
+  if(t.closest('#lndGo')){submitAuth();return}
   const at=t.closest('[data-atab]');if(at){renderAdmin(at.dataset.atab);return}
   const ud=t.closest('[data-udetail]');if(ud){renderAdminUser(ud.dataset.udetail);return}
   const ue=t.closest('[data-uedit]');if(ue){const id=+ue.dataset.uedit,u=(AUSERS&&AUSERS.users.find(x=>x.id===id))||null;if(u){userDialog(u);return}
@@ -1180,23 +1183,121 @@ async function showSetup(st,reconf){
   $('sS').onclick=async()=>{const r=await go('setup/save');if(r){if(reconf)location.reload();else boot()}};
   if(reconf)$('sX').onclick=()=>render();
 }
-function showAuth(st,mode){
-  const reg=mode==='reg'||!st.hasUsers;
-  $('main').innerHTML=`<div class="auth card">${langBox()}<h1>${reg?(st.hasUsers?'Регистрация':'Создайте первого пользователя'):'Вход'}</h1>
-  <p class="meta">${!st.hasUsers?'Этот пользователь станет администратором. У каждого пользователя свой транспорт и свои записи.':reg?'У каждого пользователя свой транспорт и свои записи.':'Войдите в свой аккаунт.'}</p>
-  <div class="form"><label>Логин<input id="aL" autocomplete="username"></label><label>Пароль<input id="aP" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>${reg?'<label>Повторите пароль<input id="aP2" type="password" autocomplete="new-password"></label>':''}</div>
-  <div class="msg bad" id="aM"></div>
-  <div class="btnr"><button class="p" id="aGo">${reg?'Создать аккаунт':'Войти'}</button>${(st.hasUsers&&st.regOpen)?`<button id="aSw">${reg?'У меня есть аккаунт':'Регистрация'}</button>`:''}</div></div>`;
-  const go=async()=>{
-    const l=$('aL').value.trim(),p=$('aP').value;
-    if(reg&&p!==$('aP2').value){$('aM').textContent='Пароли не совпадают';return}
-    try{const r=await api('auth/'+(reg?'register':'login'),'POST',{login:l,password:p,lang:LANG});ME=r.user;await loadState()}catch(e){$('aM').textContent=e.message}
+// ---- экран входа для гостей: две сцены (автодорога и море), переключатель, шутки ----
+function vehMotoArt(){return '<svg viewBox="0 0 300 150" aria-hidden="true"><g fill="none" stroke="#263238" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M70 106 L110 96 L168 96 L236 106"/><path d="M104 80 L128 96"/><path d="M236 106 L214 46" stroke-width="6"/><path d="M228 106 L208 46" stroke="#cfd8dc" stroke-width="3"/><path d="M214 46 L206 36 L186 34" stroke="#cfd8dc" stroke-width="5"/></g><path d="M120 62 Q126 50 146 50 L166 54 Q178 58 176 68 Q170 78 150 78 L122 78 Q114 72 120 62 Z" fill="#ff1744" stroke="#b71c1c" stroke-width="2"/><path d="M124 62 Q140 54 160 60" fill="none" stroke="#ffea00" stroke-width="3" stroke-linecap="round"/><path d="M94 66 Q112 58 150 62 L142 72 L96 76 Z" fill="#212121"/><path d="M128 80 L168 80 L174 98 L122 98 Z" fill="#546e7a"/><rect x="132" y="70" width="10" height="12" rx="2" fill="#cfd8dc"/><rect x="150" y="70" width="10" height="12" rx="2" fill="#cfd8dc"/><path d="M142 100 L102 112 L80 114" fill="none" stroke="#cfd8dc" stroke-width="5" stroke-linecap="round"/><rect x="80" y="108" width="28" height="10" rx="4" fill="#cfd8dc"/><path d="M30 82 Q70 58 110 82" fill="none" stroke="#212121" stroke-width="7" stroke-linecap="round"/><path d="M206 84 Q236 62 266 84" fill="none" stroke="#212121" stroke-width="7" stroke-linecap="round"/><circle cx="226" cy="64" r="8" fill="#fff176" stroke="#cfd8dc" stroke-width="3"/><g transform="translate(70 106)"><circle r="36" fill="none" stroke="#212121" stroke-width="12"/><g class="lnd-wheel"><circle r="24" fill="#eceff1"/><path d="M0 -24 L0 24 M-24 0 L24 0 M-17 -17 L17 17 M-17 17 L17 -17" stroke="#90a4ae" stroke-width="2.5"/><circle r="5" fill="#212121"/></g></g><g transform="translate(236 106)"><circle r="30" fill="none" stroke="#212121" stroke-width="11"/><g class="lnd-wheel"><circle r="20" fill="#eceff1"/><path d="M0 -20 L0 20 M-20 0 L20 0 M-14 -14 L14 14 M-14 14 L14 -14" stroke="#90a4ae" stroke-width="2.5"/><circle r="4" fill="#212121"/></g></g></svg>';}
+function vehCarArt(){return '<svg viewBox="0 0 300 140" aria-hidden="true"><circle cx="74" cy="110" r="30" fill="#212121"/><circle cx="226" cy="110" r="30" fill="#212121"/><path d="M14 110 L14 62 Q14 56 22 54 L56 46 L86 22 Q92 16 104 16 L210 16 Q218 16 224 24 L250 46 L282 52 Q288 56 288 64 L288 112 Z" fill="#ff9100" stroke="#e65100" stroke-width="2"/><path d="M104 16 L212 16" stroke="#cfd8dc" stroke-width="3" stroke-linecap="round"/><path d="M90 46 L102 26 L146 26 L146 46 Z" fill="#b3e5fc"/><path d="M152 46 L152 26 L204 26 L220 46 Z" fill="#b3e5fc"/><rect x="268" y="66" width="16" height="24" rx="3" fill="#263238"/><rect x="276" y="56" width="8" height="6" rx="2" fill="#fff59d"/><rect x="14" y="62" width="4" height="14" rx="1" fill="#ff1744"/><g transform="translate(74 110)"><g class="lnd-wheel"><circle r="20" fill="#eceff1"/><path d="M0 -20 L0 20 M-20 0 L20 0 M-14 -14 L14 14 M-14 14 L14 -14" stroke="#90a4ae" stroke-width="2.5"/><circle r="4" fill="#212121"/></g></g><g transform="translate(226 110)"><g class="lnd-wheel"><circle r="20" fill="#eceff1"/><path d="M0 -20 L0 20 M-20 0 L20 0 M-14 -14 L14 14 M-14 14 L14 -14" stroke="#90a4ae" stroke-width="2.5"/><circle r="4" fill="#212121"/></g></g></svg>';}
+// ---- Главная страница (вход и регистрация): сцена, форма, переход в приложение ----
+const LND_JOKES=["Масло само себя не поменяет 😅", "Якорь не бросают в Wi-Fi", "Свечи тоже сами себя не меняют 🔧", "Ремень ГРМ не любит сюрпризов", "Тормоза не живут вечно, честно 🛑", "Лодка не скажет «пора в док». Скажем мы", "Шины стареют даже в гараже 🛞", "Проверь, пока не зазвенело", "Мастер — друг, а записи ведёте вы 📒", "Гидроцикл после солёной воды любит промывку", "Страховка сама себя не продлит 📄", "Регламент — не наказание, а шпаргалка", "Сверил один раз — мастер уже не удивит 🧐", "Консервация на зиму: лодка спит, а вы думаете", "Фильтры не умеют напоминать о себе 🧽", "Моточасы не врут, а километры иногда врут", "Если стучит, не терпим, а записываем 🔍", "Лодочный мотор тоже ест масло, только тихо", "Хорошая запись — лучший попутчик 🗺️", "Пусть техника едет долго, а вы спокойно"];
+const LND_DISC="Garage Journal — напоминатель, а не полный контроль. Сайт создан, чтобы помочь тем, кто мало разбирается в машинах: вовремя заметить регламент замены и проверки деталей. Решения о ремонте, безопасность и ответственность за работы остаются за владельцем транспорта. Сверяйтесь с сервис-мануалом и мастером.";
+function landScene(){return `<section class="lnd-scene" aria-hidden="true">
+  <div class="lnd-sun"></div><div class="lnd-speech lnd-joke"></div>
+  <div class="lnd-hill"></div>
+  <div class="lnd-speech">Масло само себя не поменяет 😅</div>
+  <div class="lnd-sea"></div>
+  <svg class="lnd-sea-wave" viewBox="0 0 2400 60" preserveAspectRatio="none"><path d="M0 30 Q75 0 150 30 T300 30 T450 30 T600 30 T750 30 T900 30 T1050 30 T1200 30 T1350 30 T1500 30 T1650 30 T1800 30 T1950 30 T2100 30 T2250 30 T2400 30 V60 H0 Z" fill="#0b4f8a"/></svg>
+  <svg class="lnd-sailboat" viewBox="0 0 130 66" aria-hidden="true">
+    <path d="M12 44h106l-16 12H30z" fill="#ff7043" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M62 6v38" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <path d="M66 10v30h32z" fill="#ffffff" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M58 14v26H30z" fill="#fff59d" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+  </svg>
+  <div class="lnd-jet-wrap"><svg class="lnd-jet" viewBox="0 0 130 66" aria-hidden="true">
+    <path d="M10 44q4 10 28 10h58q14 0 22-16l-28 2-10-16H66l-6 12H34q-18 0-24 8z" fill="#00e5ff" stroke="#0d2540" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M80 24l-4-10h12" fill="none" stroke="#0d2540" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="96" cy="40" r="3" fill="#ff1744"/>
+  </svg></div>
+  <div class="lnd-road"></div>
+  <svg class="lnd-vehicle lnd-moto" viewBox="0 0 130 66" style="bottom:4%;width:170px;color:#1b1f2a">
+    <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M104 46L90 14M83 12h13"/><path class="lnd-tank" d="M48 28q2-8 14-8h14q6 0 8 4l-2 4z" fill="#ff1744"/><path d="M22 27q14-5 26-5"/><path d="M52 32v12h22V34M52 44l-24 2M74 44l16-4M54 52h30"/>
+    </g>
+    <g class="lnd-wheel" style="transform-box:view-box;transform-origin:28px 46px"><circle cx="28" cy="46" r="14" fill="none" stroke="currentColor" stroke-width="3"/><path d="M28 35V57M17 46H39M20.2 38.2L35.8 53.8M35.8 38.2L20.2 53.8" stroke="currentColor" stroke-width="1.6"/><circle cx="28" cy="46" r="3.5" fill="#1f5f7a"/></g>
+    <g class="lnd-wheel" style="transform-box:view-box;transform-origin:104px 46px"><circle cx="104" cy="46" r="14" fill="none" stroke="currentColor" stroke-width="3"/><path d="M104 35V57M93 46H115M96.2 38.2L111.8 53.8M111.8 38.2L96.2 53.8" stroke="currentColor" stroke-width="1.6"/><circle cx="104" cy="46" r="3.5" fill="#1f5f7a"/></g>
+  </svg>
+  <svg class="lnd-vehicle lnd-car" viewBox="0 0 130 66" style="bottom:4%;width:200px;color:#1b1f2a">
+    <g transform="translate(130 0) scale(-1 1)">
+    <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path class="lnd-body" fill-rule="evenodd" fill="#ffab00" d="M8 48V37q0-6 7-7l20-4 13-13q3-3 7-3h31q4 0 8 3l13 13 14 3q6 1 6 8v11z M45 26l10-11h14v11z M76 15h8q2 0 4 2l9 9H76z"/><path d="M45 26l10-11h14v11zM76 15h8q2 0 4 2l9 9H76z" fill="none"/>
+    </g>
+    <g class="lnd-wheel" style="transform-box:view-box;transform-origin:36px 48px"><circle cx="36" cy="48" r="11" fill="none" stroke="currentColor" stroke-width="3"/><path d="M36 40V56M28 48H44M30.3 42.3L41.7 53.7M41.7 42.3L30.3 53.7" stroke="currentColor" stroke-width="1.6"/><circle cx="36" cy="48" r="3" fill="#1f5f7a"/></g>
+    <g class="lnd-wheel" style="transform-box:view-box;transform-origin:94px 48px"><circle cx="94" cy="48" r="11" fill="none" stroke="currentColor" stroke-width="3"/><path d="M94 40V56M86 48H102M88.3 42.3L99.7 53.7M99.7 42.3L88.3 53.7" stroke="currentColor" stroke-width="1.6"/><circle cx="94" cy="48" r="3" fill="#1f5f7a"/></g>
+  </g>
+  </svg>
+</section>`;}
+let LND_RAF=0;
+function startLandJokes(){
+  clearInterval(window.__lndJk);
+  let i=Math.floor(Math.random()*LND_JOKES.length);
+  const show=()=>{i=(i+1+Math.floor(Math.random()*4))%LND_JOKES.length;document.querySelectorAll('.lnd-joke').forEach(e=>{e.textContent=LND_JOKES[i]})};
+  document.querySelectorAll('.lnd-joke').forEach(e=>{e.textContent=LND_JOKES[i]});
+  window.__lndJk=setInterval(()=>{if(!document.querySelector('.lnd-joke')){clearInterval(window.__lndJk);return}show()},5200);
+}
+function startLandScene(){
+  cancelAnimationFrame(LND_RAF);
+  const PAL=['#ff1744','#ff9100','#ffea00','#00e676','#00b0ff','#d500f9','#ff4081','#76ff03','#ffab00'];
+  const last={};
+  const pick=k=>{let c;do{c=PAL[Math.floor(Math.random()*PAL.length)]}while(c===last[k]);last[k]=c;return c};
+  const items=[...document.querySelectorAll('.lnd-vehicle')].map(el=>({el,moto:el.classList.contains('lnd-moto'),pending:false}));
+  items.forEach(it=>it.el.addEventListener('animationiteration',()=>{it.pending=true}));
+  const off=el=>{const r=el.getBoundingClientRect();return r.right<=0||r.left>=window.innerWidth};
+  const tick=()=>{
+    items.forEach(it=>{
+      if(!it.pending||!off(it.el))return;
+      it.pending=false;
+      if(it.moto){const t=it.el.querySelector('.lnd-tank');if(t)t.setAttribute('fill',pick('moto'))}
+      else{const b=it.el.querySelector('.lnd-body');if(b)b.setAttribute('fill',pick('car'))}
+    });
+    LND_RAF=requestAnimationFrame(tick);
   };
-  $('aGo').onclick=go;
-  ['aL','aP','aP2'].forEach(i=>{const el=$(i);if(el)el.onkeydown=ev=>{if(ev.key==='Enter')go()}});
-  if(st.hasUsers&&st.regOpen)$('aSw').onclick=()=>showAuth(st,reg?'login':'reg');
-  $('aL').focus();
+  LND_RAF=requestAnimationFrame(tick);
+}
+function landPage(){
+  return `<div class="lnd-page">${landScene()}<div class="lnd-main">
+    <div class="lnd-hero">
+      <h1>Гараж в кармане. Мотоцикл, машина, лодка.</h1>
+      <p>Сверьте работу с мастерской сами: история замен, фото и честная оценка.</p>
+      <ul class="lnd-steps">
+        <li><b>Ведём журнал.</b> Что менялось, когда и за сколько. Без таблиц.</li>
+        <li><b>Мастер работает по QR.</b> Что сделал, видно вам, а не только ему.</li>
+        <li><b>Вы решаете сами.</b> Каждая платная работа ждёт вашего «да».</li>
+      </ul>
+      <p class="lnd-disc">${LND_DISC}</p>
+    </div>
+    <div class="lnd-card"><h2 id="lndTitle"></h2><div id="lndForm"></div></div>
+  </div></div>`;
+}
+let AUTH_MODE='login',AUTH_ST=null;
+function showAuth(st,mode){
+  AUTH_ST=st||ST||{};
+  AUTH_MODE=(mode==='reg'||!AUTH_ST.hasUsers)?'reg':'login';
+  $('main').innerHTML=landPage();
+  startLandScene();
+  startLandJokes();
+  renderAuthForm();
+}
+function renderAuthForm(){
+  const st=AUTH_ST||{},reg=AUTH_MODE==='reg',f=$('lndForm');
+  if(!f)return;
+  $('lndTitle').textContent=reg?(st.hasUsers?'Регистрация':'Создайте первого пользователя'):'Добро пожаловать в гараж';
+  f.innerHTML=`<div class="lnd-msg" id="lndMsg"></div>
+    <label>Логин<input id="lndL" autocomplete="username"></label>
+    <label>Пароль<input id="lndP" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>
+    ${reg?'<label>Повторите пароль<input id="lndP2" type="password" autocomplete="new-password"></label>':''}
+    <button class="lnd-go" id="lndGo" type="button">${reg?'Создать аккаунт':'Заехать в гараж'}</button>
+    <button class="lnd-link" id="lndSwitch" type="button">${reg?'Уже есть аккаунт? Войти':'Нет аккаунта? Регистрация'}</button>`;
+}
+async function submitAuth(){
+  const l=($('lndL').value||'').trim(),p=$('lndP').value||'',reg=AUTH_MODE==='reg',msg=$('lndMsg');
+  msg.textContent='';
+  if(reg&&p!==$('lndP2').value){msg.textContent='Пароли не совпадают';return}
+  try{
+    const r=await api('auth/'+(reg?'register':'login'),'POST',{login:l,password:p,lang:LANG});
+    ME=r.user;
+    await loadState();
+  }catch(e){msg.textContent=e.message}
 }
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 setInterval(async()=>{if(!loaded||document.hidden||$('dlg').open||view==='inbox')return;const n=INBOX.filter(x=>x.status==='done').length;await refreshInbox();renderReqBar();if(INBOX.filter(x=>x.status==='done').length!==n&&(view==='home'||view==='veh'))render()},60000);
 boot();
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&$('lndForm')&&$('lndForm').contains(e.target)){submitAuth()}});
