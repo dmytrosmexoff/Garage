@@ -288,3 +288,12 @@ button.danger{color:var(--bad);border-color:var(--bad)}
 .lnd-steps li{color:#1b1f2a}
 .lnd-disc{color:#fff}
 .lnd-hero h1,.lnd-hero p{color:#fff}
+
+/* ---- страница входа: читаемый текст при любой теме телефона ---- */
+.lnd-page,.lnd-page *{color:#1b1f2a!important}
+.lnd-hero h1,.lnd-hero p,.lnd-disc{color:#fff!important}
+.lnd-go{color:#fff!important}
+.lnd-speech,.lnd-joke{color:#1b1f2a!important;background:#fff!important}
+.lnd-steps li{color:#1b1f2a!important;background:#fff!important}
+.lnd-card{background:#fff!important}
+.lnd-card input{background:#fff!important;color:#1b1f2a!important;border:1px solid #cfd7dd!important}
